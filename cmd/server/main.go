@@ -1,15 +1,33 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
+
+	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
 
 func main() {
 	fmt.Println("Welcome to Ofan!")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	client, err := k8s.NewClientSet()
+	if err != nil {
+		log.Fatalf("could not create k8s clientset: %v", err)
+	}
+	opts := k8s.NewServerOpts("ofan-valheim", "secret123", nil)
+	manager := k8s.NewServerManager(client, opts)
+
+	if err = manager.DeleteAll(ctx); err != nil {
+		log.Fatalf("failed to create k8s deployment: %v", err)
+	}
 
 	portStr := os.Getenv("OFAN_SERVER_PORT")
 	port, err := strconv.Atoi(portStr)

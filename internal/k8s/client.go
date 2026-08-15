@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func newClientSet() (*kubernetes.Clientset, error) {
+func NewClientSet() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	config, err := rest.InClusterConfig()
 	if err != nil {
