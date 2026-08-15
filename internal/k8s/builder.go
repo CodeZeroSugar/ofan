@@ -1,0 +1,131 @@
+package k8s
+
+import (
+	"fmt"
+
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+)
+
+func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
+	labels := map[string]string{"app": m.opts.Name, "managed-by": "ofan"}
+	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   m.opts.Name,
+			Labels: labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &m.opts.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  "valheim-server",
+							Image: "ghcr.io/lloesche/valheim-server:latest",
+							EnvFrom: []v1.EnvFromSource{
+								{
+									ConfigMapRef: &v1.ConfigMapEnvSource{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: m.opts.Name + "-configmap",
+										},
+									},
+								},
+								{
+									SecretRef: &v1.SecretEnvSource{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: m.opts.Name + "-secret",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (m *ServerManager) BuildConfigMap() *v1.ConfigMap {
+	return &v1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: m.opts.Name + "-configmap",
+		},
+		Data: map[string]string{
+			"SERVER_NAME":   m.opts.Config.CoreSettings.ServerName,
+			"WORLD_NAME":    m.opts.Config.CoreSettings.WorldName,
+			"SERVER_PUBLIC": fmt.Sprintf("%t", m.opts.Config.CoreSettings.ServerPublic),
+		},
+	}
+}
+
+func (m *ServerManager) BuildSecret() *v1.Secret {
+	return &v1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: m.opts.Name + "-secret",
+		},
+		Type: v1.SecretTypeOpaque,
+		StringData: map[string]string{
+			"SERVER_PASS": m.opts.Config.CoreSettings.ServerPass,
+		},
+	}
+}
+
+func (m *ServerManager) BuildService() *v1.Service {
+	var gameNodePort, queryNodePort int32
+	if m.opts.NodePort > 0 {
+		gameNodePort = m.opts.NodePort
+		queryNodePort = gameNodePort + 1
+	}
+	return &v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: m.opts.Name + "-service",
+		},
+		Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeNodePort,
+			Selector: map[string]string{
+				"app": m.opts.Name,
+			},
+			Ports: []v1.ServicePort{
+				{
+					Name:       "valheim-udp",
+					Protocol:   v1.ProtocolUDP,
+					Port:       m.opts.Config.CoreSettings.ServerPort,
+					TargetPort: intstr.FromInt32(m.opts.Config.CoreSettings.ServerPort),
+					NodePort:   gameNodePort,
+				},
+				{
+					Name:       "valheim-query",
+					Protocol:   v1.ProtocolUDP,
+					Port:       m.opts.Config.CoreSettings.ServerPort + 1,
+					TargetPort: intstr.FromInt32(m.opts.Config.CoreSettings.ServerPort + 1),
+					NodePort:   queryNodePort,
+				},
+			},
+		},
+	}
+}

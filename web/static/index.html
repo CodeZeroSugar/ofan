@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ofan - Valheim Orchestration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-color: #0d0f12;
+        --card-bg: #161920;
+        --card-border: #2a2e39;
+        --accent-gold: #e5a93c;
+        --accent-glow: rgba(229, 169, 60, 0.15);
+        --text-main: #f0f2f5;
+        --text-muted: #9ba1b0;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        font-family: "Inter", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 2rem 1rem;
+        background-image:
+          radial-gradient(
+            circle at 50% 10%,
+            rgba(229, 169, 60, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 80% 80%,
+            rgba(59, 130, 246, 0.04) 0%,
+            transparent 40%
+          );
+      }
+
+      .container {
+        max-width: 720px;
+        width: 100%;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 2.5rem 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .container::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--accent-gold),
+          transparent
+        );
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(229, 169, 60, 0.1);
+        border: 1px solid rgba(229, 169, 60, 0.3);
+        color: var(--accent-gold);
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 20px;
+        margin-bottom: 1.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        background-color: var(--accent-gold);
+        border-radius: 50%;
+        box-shadow: 0 0 8px var(--accent-gold);
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      h1 {
+        font-family: "Cinzel", serif;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        color: var(--text-muted);
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        line-height: 1.5;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--card-border);
+        margin: 2rem 0;
+      }
+
+      h2 {
+        font-family: "Cinzel", serif;
+        font-size: 1.25rem;
+        color: var(--accent-gold);
+        margin-bottom: 1.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+      }
+
+      .feature-card {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        transition:
+          transform 0.2s ease,
+          border-color 0.2s ease;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(229, 169, 60, 0.4);
+      }
+
+      .feature-title {
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--text-main);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .feature-desc {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+
+      footer {
+        margin-top: 2.5rem;
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        font-family: "Cinzel", serif;
+      }
+
+      @media (max-width: 600px) {
+        h1 {
+          font-size: 1.8rem;
+        }
+        .container {
+          padding: 1.75rem 1.25rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="status-badge">
+        <span class="status-dot"></span> Control Plane Initializing
+      </div>
+
+      <h1>Welcome to Ofan, Vikings!</h1>
+      <p class="subtitle">
+        On-demand Valheim server orchestration summoned straight from the cloud.
+        Your realms, active only when you need them.
+      </p>
+
+      <div class="divider"></div>
+
+      <h2>Upcoming Features</h2>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-title">⚡ On-Demand Spinning</div>
+          <div class="feature-desc">
+            Launch your dedicated Valheim server pod in under 60 seconds with a
+            single click.
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title">🛡️ Safe World Saves</div>
+          <div class="feature-desc">
+            Automatic S3 sync and graceful signal handling ensure zero lost loot
+            or corrupted worlds.
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title">🤖 Discord Integration</div>
+          <div class="feature-desc">
+            Start, stop, and check world status directly from your Discord
+            server via slash commands.
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title">💰 Smart Idle Shutdown</div>
+          <div class="feature-desc">
+            Detects when all Vikings log off and automatically tears down
+            compute resources to save gold.
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title">📊 Live Server Metrics</div>
+          <div class="feature-desc">
+            Monitor player count, RAM usage, and server logs directly from this
+            web dashboard.
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-title">🔑 Viking Auth & Access</div>
+          <div class="feature-desc">
+            Secure account management allowing trusted friends to launch servers
+            without admin access.
+          </div>
+        </div>
+      </div>
+
+      <footer>OFAN &bull; FORGED WITH GO &amp; KUBERNETES</footer>
+    </div>
+  </body>
+</html>

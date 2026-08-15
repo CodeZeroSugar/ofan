@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ofan-valheim
+  labels:
+    app: ofan-valheim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ofan-valheim
+  template:
+    metadata:
+      labels:
+        app: ofan-valheim
+    spec:
+      containers:
+        - name: valheim-server
+          image: lloesche/valheim-server:latest
+          envFrom:
+            - configMapRef:
+                name: ofan-valheim-configmap
+            - secretRef:
+                name: valheim-secret
