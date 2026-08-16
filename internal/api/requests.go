@@ -15,3 +15,7 @@ func (s *CreateGameServer) ToOpts() k8s.ServerOpts {
 	}
 	return k8s.NewServerOpts(s.Name, s.Password, &s.ServerOpts.Config)
 }
+
+type DeleteServerRequest struct {
+	DeleteStorage bool `json:"delete_storage"`
+}

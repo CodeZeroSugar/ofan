@@ -1,0 +1,9 @@
+# Environment files
+.env
+/cmd/server/.env
+
+# SQLite storage
+/data/
+*.db
+*.db-wal
+*.db-shm

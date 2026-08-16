@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
-	"github.com/CodeZeroSugar/ofan/internal/k8s"
 	"github.com/CodeZeroSugar/ofan/web"
 )
 
@@ -18,7 +17,7 @@ type server struct {
 	apiCfg     *api.ApiConfig
 }
 
-func newServer(port int) (*server, error) {
+func newServer(port string, apiCfg *api.ApiConfig) (*server, error) {
 	staticFS, err := web.GetStaticFS()
 	if err != nil {
 		return nil, err
@@ -27,26 +26,21 @@ func newServer(port int) (*server, error) {
 	mux := http.NewServeMux()
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf(":%s", port),
 		Handler: mux,
-	}
-	clientset, err := k8s.NewClientSet()
-	if err != nil {
-		return nil, fmt.Errorf("could not establish k8s clientset: %w", err)
 	}
 
 	s := &server{
 		httpServer: srv,
 		staticFs:   staticFS,
-		apiCfg: &api.ApiConfig{
-			Clientset: clientset,
-		},
+		apiCfg:     apiCfg,
 	}
 
 	mux.HandleFunc("GET /", s.handlerIndex)
 	mux.HandleFunc("GET /healthz", s.handlerReadiness)
 	mux.HandleFunc("POST /admin/shutdown", s.handlerShutdown)
-	mux.HandleFunc("POST /api/v1/create", s.apiCfg.HandlerCreateGameServer)
+	mux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
 
 	return s, nil
 }

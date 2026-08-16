@@ -1,10 +1,17 @@
 package api
 
-import "github.com/CodeZeroSugar/ofan/internal/k8s"
+import (
+	"github.com/CodeZeroSugar/ofan/internal/db"
+	"github.com/CodeZeroSugar/ofan/internal/k8s"
+)
 
 type provisionResponse struct {
-	Status        string         `json:"status"`
-	ServerName    string         `json:"server_name"`
-	NodePort      int32          `json:"node_port"`
-	ServerOptions k8s.ServerOpts `json:"server_options"`
+	ServerRecord  *db.ServerRecord `json:"server_record"`
+	ServerOptions k8s.ServerOpts   `json:"server_options"`
+}
+
+type DeleteServerResponse struct {
+	ServerName    string `json:"server_name"`
+	Status        string `json:"status"`
+	StoragePurged bool   `json:"storage_purged"`
 }

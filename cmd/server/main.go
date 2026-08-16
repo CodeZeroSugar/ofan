@@ -1,46 +1,41 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
-	"time"
 
+	"github.com/CodeZeroSugar/ofan/internal/api"
+	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
 
 func main() {
 	fmt.Println("Welcome to Ofan!")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	client, err := k8s.NewClientSet()
+	cfg := loadConfig()
+	database, err := db.NewStore(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("could not create k8s clientset: %v", err)
+		log.Fatalf("failed to initialize database: %v", err)
 	}
-	opts := k8s.NewServerOpts("ofan-valheim", "secret123", nil)
-	manager := k8s.NewServerManager(client, opts)
+	defer database.Close()
 
-	if err = manager.DeleteAll(ctx, true); err != nil {
-		log.Fatalf("failed to create k8s deployment: %v", err)
-	}
-
-	portStr := os.Getenv("OFAN_SERVER_PORT")
-	port, err := strconv.Atoi(portStr)
+	clientset, err := k8s.NewClientSet()
 	if err != nil {
-		log.Fatalf("could not get port from env: %v", err)
+		log.Fatalf("could not establish k8s clientset: %v", err)
 	}
 
-	srv, err := newServer(port)
+	apiCfg := &api.ApiConfig{
+		Clientset: clientset,
+		DB:        database,
+	}
+
+	srv, err := newServer(cfg.Port, apiCfg)
 	if err != nil {
 		log.Fatalf("failed to initialize server: %v", err)
 	}
 
-	fmt.Printf("server running at: http://localhost:%d\n", port)
+	fmt.Printf("server running at: http://localhost:%s\n", cfg.Port)
 	err = srv.httpServer.ListenAndServe()
 	if err != http.ErrServerClosed {
 		log.Fatalf("server did not shutdown properly: %v", err)
