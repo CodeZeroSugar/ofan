@@ -25,7 +25,7 @@ func main() {
 	opts := k8s.NewServerOpts("ofan-valheim", "secret123", nil)
 	manager := k8s.NewServerManager(client, opts)
 
-	if err = manager.DeleteAll(ctx); err != nil {
+	if err = manager.DeleteAll(ctx, true); err != nil {
 		log.Fatalf("failed to create k8s deployment: %v", err)
 	}
 

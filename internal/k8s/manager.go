@@ -33,7 +33,13 @@ func (m *ServerManager) CreateAll(ctx context.Context) error {
 
 	_, err := m.client.CoreV1().Namespaces().Create(ctx, namespace, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create namspace: %w", err)
+		return fmt.Errorf("failed to create namespace: %w", err)
+	}
+
+	persistentVolumeClaim := m.BuildPersistentVolumeClaim()
+	_, err = m.client.CoreV1().PersistentVolumeClaims(ns).Create(ctx, persistentVolumeClaim, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create persistent volume claim: %w", err)
 	}
 
 	secret := m.BuildSecret()
@@ -63,7 +69,7 @@ func (m *ServerManager) CreateAll(ctx context.Context) error {
 	return nil
 }
 
-func (m *ServerManager) DeleteAll(ctx context.Context) error {
+func (m *ServerManager) DeleteAll(ctx context.Context, deleteStorage bool) error {
 	ns := m.opts.Namespace
 
 	err := m.client.AppsV1().Deployments(ns).Delete(ctx, m.opts.Name, metav1.DeleteOptions{})
@@ -86,6 +92,13 @@ func (m *ServerManager) DeleteAll(ctx context.Context) error {
 		return fmt.Errorf("failed to delete secret: %w", err)
 	}
 
+	if deleteStorage {
+		err := m.client.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, m.opts.Name+"-pvc", metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete persistent volume claim: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -104,7 +117,7 @@ func (m *ServerManager) Stop(ctx context.Context) error {
 	deployment.Spec.Replicas = &zero
 
 	_, err = m.client.AppsV1().Deployments(ns).Update(ctx, deployment, metav1.UpdateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		return fmt.Errorf("failed to update deployment replicas: %w", err)
 	}
 
@@ -121,15 +134,14 @@ func (m *ServerManager) Start(ctx context.Context) error {
 		}
 		return fmt.Errorf("failed to scale deployments to 1, could not get deployments: %w", err)
 	}
-	if *deployment.Spec.Replicas > 0 {
+	if deployment.Spec.Replicas != nil && *deployment.Spec.Replicas > 0 {
 		return fmt.Errorf("deployment already running with %d replicas", deployment.Status.Replicas)
 	}
 
-	var one int32 = 1
-	deployment.Spec.Replicas = &one
+	deployment.Spec.Replicas = &maxReplicas
 
 	_, err = m.client.AppsV1().Deployments(ns).Update(ctx, deployment, metav1.UpdateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		return fmt.Errorf("failed to update deployment replicas: %w", err)
 	}
 
