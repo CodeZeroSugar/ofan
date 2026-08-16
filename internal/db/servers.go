@@ -20,28 +20,17 @@ type ServerRecord struct {
 
 var ErrNotFound = errors.New("record not found")
 
-func (s *Store) CreateServer(ctx context.Context, srv ServerRecord) (*ServerRecord, error) {
+func (s *Store) CreateServer(ctx context.Context, srv ServerRecord) error {
 	query := `
 	INSERT INTO servers (id, name, namespace, node_port, status)
 	VALUES (?, ?, ?, ?, ?);
 	`
 	_, err := s.db.ExecContext(ctx, query, srv.ID, srv.Name, srv.Namespace, srv.NodePort, srv.Status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert server: %w", err)
+		return fmt.Errorf("failed to insert server: %w", err)
 	}
 
-	row := s.db.QueryRowContext(ctx, query, srv.Name)
-	var record ServerRecord
-
-	err = row.Scan(&record.ID, &record.Name, &record.Namespace, &record.NodePort, &record.Status, &record.CreatedAt, &record.UpdatedAt)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("failed to query server %s after creation: %w", srv.Name, err)
-	}
-
-	return &record, nil
+	return nil
 }
 
 func (s *Store) GetServerByName(ctx context.Context, name string) (*ServerRecord, error) {

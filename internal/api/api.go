@@ -14,8 +14,9 @@ import (
 )
 
 type ApiConfig struct {
-	Clientset *kubernetes.Clientset
-	DB        *db.Store
+	Clientset       *kubernetes.Clientset
+	DB              *db.Store
+	InformerManager *k8s.InformerManager
 }
 
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
@@ -32,23 +33,39 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 
 	opts := req.ToOpts()
 
-	mgr := k8s.NewServerManager(c.Clientset, opts)
-	if err := mgr.CreateAll(r.Context()); err != nil {
-		http.Error(w, fmt.Sprintf("provisioning failed: %v\n", err), http.StatusInternalServerError)
-		return
-	}
-
 	srvRecord := db.ServerRecord{
 		ID:        uuid.NewString(),
 		Name:      opts.Name,
 		Namespace: opts.Namespace,
 		NodePort:  opts.NodePort,
-		Status:    "running",
+		Status:    "provisioning",
 	}
 
-	record, err := c.DB.CreateServer(r.Context(), srvRecord)
+	err := c.DB.CreateServer(r.Context(), srvRecord)
 	if err != nil {
-		log.Printf("failed to fetch record for provision response: %v", err)
+		http.Error(w, fmt.Sprintf("failed to create db entry for '%s', terminating server provisioning: %v", req.Name, srvRecord), http.StatusInternalServerError)
+		log.Printf("failed to create db entry for '%s', terminating server provisioning: %v", opts.Name, srvRecord)
+		return
+	}
+
+	mgr := k8s.NewServerManager(c.Clientset, opts)
+	if err := mgr.CreateAll(r.Context()); err != nil {
+		log.Printf("failed to provision new server: %v", err)
+		if updateErr := c.DB.UpdateServerStatus(r.Context(), opts.Name, "failed"); updateErr != nil {
+			log.Printf("failed to update status to 'failed' in db after provisioning failure: %v", updateErr)
+		}
+		http.Error(w, fmt.Sprintf("provisioning failed: %v\n", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.DB.UpdateServerStatus(r.Context(), opts.Name, "running"); err != nil {
+		log.Printf("failed to update status to 'running' in db for '%s': %v", opts.Name, err)
+	}
+	record, err := c.DB.GetServerByName(r.Context(), opts.Name)
+	if err != nil {
+		log.Printf("failed to get db record for provision response: %v", err)
+		srvRecord.Status = "running"
+		record = &srvRecord
 	}
 
 	data := provisionResponse{
