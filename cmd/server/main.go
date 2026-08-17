@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
-	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
 
@@ -21,26 +20,20 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	database, err := db.NewStore(cfg.DBPath)
-	if err != nil {
-		log.Fatalf("failed to initialize database: %v", err)
-	}
-	defer database.Close()
-
 	clientset, err := k8s.NewClientSet()
 	if err != nil {
 		log.Fatalf("could not establish k8s clientset: %v", err)
 	}
 
-	informerMgr, err := k8s.StartInformerManager(clientset, cfg.DefaultNamespace, ctx, database)
+	informerMgr, err := k8s.StartInformerManager(clientset, cfg.DefaultNamespace, ctx)
 	if err != nil {
 		log.Fatalf("failed to start informers: %v", err)
 	}
 
 	apiCfg := &api.ApiConfig{
 		Clientset:       clientset,
-		DB:              database,
 		InformerManager: informerMgr,
+		Namespace:       cfg.DefaultNamespace,
 	}
 
 	srv, err := newServer(cfg.Port, apiCfg)

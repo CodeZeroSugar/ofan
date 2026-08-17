@@ -7,3 +7,6 @@
 *.db
 *.db-wal
 *.db-shm
+
+# Planning notes
+TODO.md

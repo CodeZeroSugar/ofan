@@ -41,6 +41,7 @@ func newServer(port string, apiCfg *api.ApiConfig) (*server, error) {
 	mux.HandleFunc("POST /admin/shutdown", s.handlerShutdown)
 	mux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
 	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
+	mux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
 
 	return s, nil
 }

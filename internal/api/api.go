@@ -1,22 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
-	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
-	"github.com/google/uuid"
 	"k8s.io/client-go/kubernetes"
 )
 
 type ApiConfig struct {
 	Clientset       *kubernetes.Clientset
-	DB              *db.Store
 	InformerManager *k8s.InformerManager
+	Namespace       string
 }
 
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
@@ -32,44 +31,35 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 	}
 
 	opts := req.ToOpts()
+	opts.Namespace = c.Namespace
 
-	srvRecord := db.ServerRecord{
-		ID:        uuid.NewString(),
-		Name:      opts.Name,
-		Namespace: opts.Namespace,
-		NodePort:  opts.NodePort,
-		Status:    "provisioning",
-	}
-
-	err := c.DB.CreateServer(r.Context(), srvRecord)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to create db entry for '%s', terminating server provisioning: %v", req.Name, srvRecord), http.StatusInternalServerError)
-		log.Printf("failed to create db entry for '%s', terminating server provisioning: %v", opts.Name, srvRecord)
+	if _, exists := c.InformerManager.Registry.Get(opts.Name); exists {
+		log.Printf("tried to create game server with name '%s' that already exists", opts.Name)
+		http.Error(w, fmt.Sprintf("game server '%s' already exists", opts.Name), http.StatusConflict)
 		return
 	}
 
 	mgr := k8s.NewServerManager(c.Clientset, opts)
-	if err := mgr.CreateAll(r.Context()); err != nil {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	c.InformerManager.Registry.Upsert(opts.Name, func(s *k8s.ServerState) {
+		s.Namespace = opts.Namespace
+		s.Status = "provisioning"
+		s.Replicas = opts.Replicas
+	})
+
+	if err := mgr.CreateAll(ctx); err != nil {
 		log.Printf("failed to provision new server: %v", err)
-		if updateErr := c.DB.UpdateServerStatus(r.Context(), opts.Name, "failed"); updateErr != nil {
-			log.Printf("failed to update status to 'failed' in db after provisioning failure: %v", updateErr)
-		}
 		http.Error(w, fmt.Sprintf("provisioning failed: %v\n", err), http.StatusInternalServerError)
+		c.InformerManager.Registry.Delete(opts.Name)
 		return
 	}
 
-	if err := c.DB.UpdateServerStatus(r.Context(), opts.Name, "running"); err != nil {
-		log.Printf("failed to update status to 'running' in db for '%s': %v", opts.Name, err)
-	}
-	record, err := c.DB.GetServerByName(r.Context(), opts.Name)
-	if err != nil {
-		log.Printf("failed to get db record for provision response: %v", err)
-		srvRecord.Status = "running"
-		record = &srvRecord
-	}
-
 	data := provisionResponse{
-		ServerRecord:  record,
+		ServerName:    opts.Name,
+		Status:        "provisioning",
 		ServerOptions: opts,
 	}
 
@@ -87,44 +77,53 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	record, err := c.DB.GetServerByName(r.Context(), serverName)
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			http.Error(w, "server not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, fmt.Sprintf("database error: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	var req DeleteServerRequest
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to decode request body: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	ns := c.Namespace
+	if state, ok := c.InformerManager.Registry.Get(serverName); ok && state.Namespace != "" {
+		ns = state.Namespace
 	}
 
 	opts := k8s.ServerOpts{
-		Name:      record.Name,
-		Namespace: record.Namespace,
+		Name:      serverName,
+		Namespace: ns,
 	}
 
 	mgr := k8s.NewServerManager(c.Clientset, opts)
-	if err := mgr.DeleteAll(r.Context(), req.DeleteStorage); err != nil {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := mgr.DeleteAll(ctx, req.DeleteStorage); err != nil {
 		http.Error(w, fmt.Sprintf("k8s teardown failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	if err := c.DB.DeleteServer(r.Context(), serverName); err != nil {
-		http.Error(w, fmt.Sprintf("k8s deleted but db record cleanup failed: %v", err), http.StatusInternalServerError)
-		return
+	if _, ok := c.InformerManager.Registry.Get(serverName); ok {
+		c.InformerManager.Registry.Upsert(opts.Name, func(s *k8s.ServerState) {
+			s.Status = "deleting"
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(DeleteServerResponse{
 		ServerName:    serverName,
-		Status:        "deleted",
+		Status:        "deleting",
 		StoragePurged: req.DeleteStorage,
 	}); err != nil {
 		log.Printf("failed to send delete server response for server %s: %v", serverName, err)
 	}
+}
+
+func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(c.InformerManager.Registry.List())
 }

@@ -88,7 +88,6 @@ func DefaultValheimConfig(name, password string) ValheimConfig {
 func NewServerOpts(name, password string, config *ValheimConfig) ServerOpts {
 	srvOpts := ServerOpts{
 		Name:        name,
-		Namespace:   NAMESPACE,
 		Replicas:    maxReplicas,
 		NodePort:    0,
 		StorageSize: "10Gi",
