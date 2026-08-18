@@ -74,6 +74,18 @@ func (r *ServerRegistry) Delete(name string) {
 	delete(r.servers, name)
 }
 
+func (r *ServerRegistry) PortInUse(port int32) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for name, s := range r.servers {
+		if s.NodePort == port || s.QueryPort == port {
+			return name
+		}
+	}
+	return ""
+}
+
 func deploymentStatus(d *appsv1.Deployment) string {
 	if d.DeletionTimestamp != nil {
 		return "deleting"

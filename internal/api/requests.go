@@ -18,7 +18,7 @@ type CreateGameServer struct {
 }
 
 func (s *CreateGameServer) ToOpts() k8s.ServerOpts {
-	if s.Default {
+	if s.Default || s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
 		return k8s.NewServerOpts(s.Name, s.Password, nil)
 	}
 	return k8s.NewServerOpts(s.Name, s.Password, &s.ServerOpts.Config)
@@ -37,7 +37,6 @@ func (s *CreateGameServer) Validate() error {
 	}
 
 	if s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
-		s.Default = true
 		return nil
 	}
 
