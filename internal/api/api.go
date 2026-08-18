@@ -64,7 +64,7 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Printf("failed to encode response: %v", err)
 	}

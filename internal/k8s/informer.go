@@ -11,17 +11,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	appslisters "k8s.io/client-go/listers/apps/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 type InformerManager struct {
-	DeployLister  appslisters.DeploymentLister
-	PodLister     corelisters.PodLister
-	ServiceLister corelisters.ServiceLister
-	PvcLister     corelisters.PersistentVolumeClaimLister
-	Registry      *ServerRegistry
+	Registry *ServerRegistry
 }
 
 func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx context.Context) (*InformerManager, error) {
@@ -31,8 +25,7 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 	serviceInformer := factory.Core().V1().Services()
 
 	mgr := &InformerManager{
-		DeployLister: deployInformer.Lister(),
-		Registry:     NewServerRegistry(),
+		Registry: NewServerRegistry(),
 	}
 
 	_, err := deployInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

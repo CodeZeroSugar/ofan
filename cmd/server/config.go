@@ -10,23 +10,23 @@ import (
 
 type Config struct {
 	Port             string
-	DBPath           string
 	DefaultNamespace string
 	KubeConfigPath   string
-	InCluster        bool
 }
 
 func loadConfig() Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found in working directory or project root, using environment defaults")
 	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = os.Getenv("HOME")
+	}
 
 	return Config{
 		Port:             getEnv("PORT", "8080"),
-		DBPath:           getEnv("DB_PATH", "./data/ofan.db"),
 		DefaultNamespace: getEnv("DEFAULT_NAMESPACE", "ofan-dev"),
-		KubeConfigPath:   getEnv("KUBECONFIG_PATH", filepath.Join(os.Getenv("HOME"), "kube", "config")),
-		InCluster:        getEnv("IN_CLUSTER", "false") == "true",
+		KubeConfigPath:   getEnv("KUBECONFIG_PATH", filepath.Join(homeDir, ".kube", "config")),
 	}
 }
 

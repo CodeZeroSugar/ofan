@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+const PVC_STORAGE_AMOUNT = "10gi"
+
 func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 	labels := serverLabels(m.opts.Name)
 	return &appsv1.Deployment{
@@ -174,7 +176,7 @@ func (m *ServerManager) BuildPersistentVolumeClaim() *v1.PersistentVolumeClaim {
 				v1.ReadWriteOnce,
 			},
 			Resources: v1.VolumeResourceRequirements{
-				Requests: v1.ResourceList{v1.ResourceStorage: resource.MustParse("10Gi")},
+				Requests: v1.ResourceList{v1.ResourceStorage: resource.MustParse(PVC_STORAGE_AMOUNT)},
 			},
 		},
 	}

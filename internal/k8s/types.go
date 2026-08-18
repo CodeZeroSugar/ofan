@@ -1,9 +1,5 @@
 package k8s
 
-const (
-	NAMESPACE = "ofan-dev"
-)
-
 var maxReplicas int32 = 1
 
 type ServerOpts struct {
