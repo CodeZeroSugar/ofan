@@ -25,8 +25,8 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if req.Name == "" {
-		http.Error(w, "server name is required", http.StatusBadRequest)
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
