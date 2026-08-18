@@ -13,7 +13,7 @@ import (
 )
 
 type ApiConfig struct {
-	Clientset       *kubernetes.Clientset
+	Clientset       kubernetes.Interface
 	InformerManager *k8s.InformerManager
 	Namespace       string
 }
@@ -46,8 +46,8 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		if name := c.InformerManager.Registry.PortInUse(np + 1); name != "" {
-			log.Printf("node_port %d (query) already in use by server '%s'", np, name)
-			http.Error(w, fmt.Sprintf("node_port %d already in use by server '%s'", np, name), http.StatusConflict)
+			log.Printf("node_port %d (query) already in use by server '%s'", np+1, name)
+			http.Error(w, fmt.Sprintf("node_port %d already in use by server '%s'", np+1, name), http.StatusConflict)
 			return
 		}
 	}

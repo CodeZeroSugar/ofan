@@ -12,10 +12,10 @@ import (
 
 type ServerManager struct {
 	opts   ServerOpts
-	client *kubernetes.Clientset
+	client kubernetes.Interface
 }
 
-func NewServerManager(client *kubernetes.Clientset, opts ServerOpts) *ServerManager {
+func NewServerManager(client kubernetes.Interface, opts ServerOpts) *ServerManager {
 	return &ServerManager{
 		opts:   opts,
 		client: client,
