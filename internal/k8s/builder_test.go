@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestBuildDeployment(t *testing.T) {
@@ -23,6 +25,8 @@ func TestBuildDeployment(t *testing.T) {
 	assert.Equal(t, labels, dep.Spec.Selector.MatchLabels)
 	assert.Equal(t, labels, dep.Spec.Template.Labels)
 	for _, c := range dep.Spec.Template.Spec.Containers {
+		assert.Equal(t, "valheim-server", c.Name)
+		assert.Equal(t, "ghcr.io/lloesche/valheim-server:latest", c.Image)
 		for _, m := range c.VolumeMounts {
 			assert.Equal(t, name+"-volume", m.Name)
 		}
@@ -38,5 +42,78 @@ func TestBuildDeployment(t *testing.T) {
 	for _, v := range dep.Spec.Template.Spec.Volumes {
 		assert.Equal(t, name+"-volume", v.Name)
 		assert.Equal(t, name+"-pvc", v.PersistentVolumeClaim.ClaimName)
+	}
+}
+
+func TestBuildService(t *testing.T) {
+	tests := []struct {
+		name                string
+		inputNodePort       int32
+		inputServerPort     int32
+		expectedNodePort    int32
+		expectedQueryPort   int32
+		expectedServerPort  int32
+		expectedServerQuery int32
+	}{
+		{
+			name:                "node port is 0",
+			inputNodePort:       0,
+			inputServerPort:     2456,
+			expectedNodePort:    0,
+			expectedQueryPort:   0,
+			expectedServerPort:  2456,
+			expectedServerQuery: 2457,
+		},
+		{
+			name:                "explicit node port",
+			inputNodePort:       30001,
+			inputServerPort:     6969,
+			expectedNodePort:    30001,
+			expectedQueryPort:   30002,
+			expectedServerPort:  6969,
+			expectedServerQuery: 6970,
+		},
+	}
+
+	for _, tt := range tests {
+		mgr := NewServerManager(nil, ServerOpts{
+			Name:      "alpha",
+			Namespace: "ofan-test",
+			NodePort:  tt.inputNodePort,
+			Config: ValheimConfig{
+				CoreSettings: CoreSettings{
+					ServerPort: tt.inputServerPort,
+				},
+				AccessControl:  AccessControl{},
+				Maintenance:    Maintenance{},
+				Mods:           Mods{},
+				SystemSettings: SystemSettings{},
+			},
+		})
+		svc := mgr.BuildService()
+		assert.True(t, len(svc.Spec.Ports) == 2)
+		sawUdp := false
+		sawQuery := false
+		for _, p := range svc.Spec.Ports {
+			switch p.Name {
+			case "valheim-udp":
+				sawUdp = true
+				assert.Equal(t, tt.expectedNodePort, p.NodePort)
+				assert.Equal(t, tt.expectedServerPort, p.Port)
+				assert.Equal(t, intstr.FromInt32(tt.expectedServerPort), p.TargetPort)
+				assert.Equal(t, v1.ProtocolUDP, p.Protocol)
+			case "valheim-query":
+				sawQuery = true
+				assert.Equal(t, tt.expectedQueryPort, p.NodePort)
+				assert.Equal(t, tt.expectedServerQuery, p.Port)
+				assert.Equal(t, intstr.FromInt32(tt.expectedServerQuery), p.TargetPort)
+				assert.Equal(t, v1.ProtocolUDP, p.Protocol)
+			}
+		}
+		assert.True(t, sawUdp)
+		assert.True(t, sawQuery)
+		assert.Equal(t, map[string]string{"app": mgr.opts.Name}, svc.Spec.Selector)
+		assert.Equal(t, serverLabels("alpha"), svc.Labels)
+		assert.Equal(t, v1.ServiceTypeNodePort, svc.Spec.Type)
 	}
 }
