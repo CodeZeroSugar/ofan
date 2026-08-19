@@ -178,5 +178,27 @@ func TestToOpts(t *testing.T) {
 	assert.Equal(t, "secret123", opts.Config.CoreSettings.ServerPass)
 	assert.Equal(t, "alpha", opts.Config.CoreSettings.ServerName)
 	assert.Equal(t, int32(2457), opts.Config.CoreSettings.ServerPort)
+	assert.Equal(t, int32(30001), opts.NodePort)
+
+	// Test: config carries through with nodePort as 0
+	gs = &CreateGameServer{
+		Name:     "alpha",
+		Password: "secret123",
+		ServerOpts: &k8s.ServerOpts{
+			Config: k8s.ValheimConfig{
+				CoreSettings: k8s.CoreSettings{
+					ServerName: "alpha",
+					ServerPort: 2457,
+					ServerPass: "secret123",
+				},
+			},
+			NodePort: 0,
+		},
+	}
+	opts = gs.ToOpts()
+	assert.Equal(t, "alpha", opts.Name)
+	assert.Equal(t, "secret123", opts.Config.CoreSettings.ServerPass)
+	assert.Equal(t, "alpha", opts.Config.CoreSettings.ServerName)
+	assert.Equal(t, int32(2457), opts.Config.CoreSettings.ServerPort)
 	assert.Equal(t, int32(0), opts.NodePort)
 }

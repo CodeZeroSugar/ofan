@@ -17,10 +17,15 @@ type CreateGameServer struct {
 }
 
 func (s *CreateGameServer) ToOpts() k8s.ServerOpts {
-	if s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
-		return k8s.NewServerOpts(s.Name, s.Password, nil)
+	var config *k8s.ValheimConfig
+	if s.ServerOpts != nil && s.ServerOpts.Config != (k8s.ValheimConfig{}) {
+		config = &s.ServerOpts.Config
 	}
-	return k8s.NewServerOpts(s.Name, s.Password, &s.ServerOpts.Config)
+	opts := k8s.NewServerOpts(s.Name, s.Password, config)
+	if s.ServerOpts != nil && s.ServerOpts.NodePort != 0 {
+		opts.NodePort = s.ServerOpts.NodePort
+	}
+	return opts
 }
 
 func (s *CreateGameServer) Validate() error {

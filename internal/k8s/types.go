@@ -82,7 +82,7 @@ func DefaultValheimConfig(name, password string) ValheimConfig {
 }
 
 func NewServerOpts(name, password string, config *ValheimConfig) ServerOpts {
-	srvOpts := ServerOpts{
+	opts := ServerOpts{
 		Name:        name,
 		Replicas:    maxReplicas,
 		NodePort:    0,
@@ -90,10 +90,10 @@ func NewServerOpts(name, password string, config *ValheimConfig) ServerOpts {
 	}
 
 	if config == nil {
-		srvOpts.Config = DefaultValheimConfig(name, password)
-		return srvOpts
+		opts.Config = DefaultValheimConfig(name, password)
+		return opts
 	}
 
-	srvOpts.Config = *config
-	return srvOpts
+	opts.Config = *config
+	return opts
 }
