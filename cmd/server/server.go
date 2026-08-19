@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"log"
 	"net/http"
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
@@ -15,9 +14,10 @@ type server struct {
 	httpServer *http.Server
 	staticFs   fs.FS
 	apiCfg     *api.ApiConfig
+	cancel     context.CancelFunc
 }
 
-func newServer(port string, apiCfg *api.ApiConfig) (*server, error) {
+func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*server, error) {
 	staticFS, err := web.GetStaticFS()
 	if err != nil {
 		return nil, err
@@ -34,6 +34,7 @@ func newServer(port string, apiCfg *api.ApiConfig) (*server, error) {
 		httpServer: srv,
 		staticFs:   staticFS,
 		apiCfg:     apiCfg,
+		cancel:     cancel,
 	}
 
 	mux.HandleFunc("GET /", s.handlerIndex)
@@ -44,10 +45,4 @@ func newServer(port string, apiCfg *api.ApiConfig) (*server, error) {
 	mux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
 
 	return s, nil
-}
-
-func (s *server) shutdown(ctx context.Context) {
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		log.Printf("server failed to shutdown properly: %v", err)
-	}
 }

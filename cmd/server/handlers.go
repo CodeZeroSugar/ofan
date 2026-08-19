@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	_ "embed"
 	"io"
 	"io/fs"
@@ -32,6 +31,5 @@ func (s *server) handlerShutdown(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	io.WriteString(w, "Ofan server shutting down...")
-
-	go s.shutdown(context.Background())
+	s.cancel()
 }

@@ -37,7 +37,7 @@ func main() {
 		Namespace:       cfg.DefaultNamespace,
 	}
 
-	srv, err := newServer(cfg.Port, apiCfg)
+	srv, err := newServer(cfg.Port, apiCfg, cancel)
 	if err != nil {
 		log.Fatalf("failed to initialize server: %v", err)
 	}
@@ -51,9 +51,9 @@ func main() {
 
 	<-ctx.Done()
 	log.Println("server shutting down...")
-	shutdowCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := srv.httpServer.Shutdown(shutdowCtx); err != nil {
+	if err := srv.httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("server failed to shutdown properly: %v", err)
 	}
 }
