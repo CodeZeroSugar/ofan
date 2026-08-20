@@ -20,7 +20,7 @@ func TestDeploymentStatus(t *testing.T) {
 		deploy   *appsv1.Deployment
 		expected string
 	}{
-		{"nil replicas", &appsv1.Deployment{}, "stopped"},
+		{"nil replicas", &appsv1.Deployment{}, "provisioning"},
 		{"scaled to zero", &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Replicas: int32Ptr(0)}}, "stopped"},
 		{"provisioning", &appsv1.Deployment{
 			Spec:   appsv1.DeploymentSpec{Replicas: &one},

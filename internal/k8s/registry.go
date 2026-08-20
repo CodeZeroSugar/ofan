@@ -90,7 +90,7 @@ func deploymentStatus(d *appsv1.Deployment) string {
 	if d.DeletionTimestamp != nil {
 		return "deleting"
 	}
-	replicas := int32(0)
+	replicas := int32(1)
 	if d.Spec.Replicas != nil {
 		replicas = *d.Spec.Replicas
 	}

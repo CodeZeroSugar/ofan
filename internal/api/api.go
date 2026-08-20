@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -92,8 +94,7 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 
 	var req DeleteServerRequest
 	if r.Body != nil {
-		err := json.NewDecoder(r.Body).Decode(&req)
-		if err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 			http.Error(w, fmt.Sprintf("failed to decode request body: %v", err), http.StatusBadRequest)
 			return
 		}

@@ -173,6 +173,19 @@ func (s *apiSuite) TestDelete_Unknown() {
 	s.Require().False(ok)
 }
 
+func (s *apiSuite) TestDelete_NoBody() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/alpha/delete", http.NoBody)
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Require().Equal(http.StatusAccepted, s.rr.Code)
+	_, ok := s.cfg.InformerManager.Registry.Get("ghost")
+	s.Require().False(ok)
+}
+
 func (s *apiSuite) TestList() {
 	s.cfg.InformerManager.Registry.Upsert("alpha", func(st *k8s.ServerState) {
 		st.Namespace = "ofan-dev"
