@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const PVC_STORAGE_AMOUNT = "10gi"
+const PVC_STORAGE_AMOUNT = "10Gi"
 
 func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 	labels := serverLabels(m.opts.Name)
