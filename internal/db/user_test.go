@@ -248,3 +248,11 @@ func TestResetPassword(t *testing.T) {
 	assert.True(t, u.MustChangePassword)
 	assert.Equal(t, "temphash", u.PasswordHash)
 }
+
+func TestResetPassword_IsRoot(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	err := store.ResetPassword(ctx, "admin", "temphash")
+	assert.ErrorIs(t, err, ErrIsRoot)
+}
