@@ -25,6 +25,20 @@ type User struct {
 	UpdatedAt          time.Time
 }
 
+func (s *Store) isRootUser(ctx context.Context, username string) (bool, error) {
+	var isRoot bool
+	err := s.db.QueryRowContext(ctx, `
+		SELECT is_root FROM users WHERE username = ?
+		;`, username).Scan(&isRoot)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrUserNotFound
+		}
+		return false, fmt.Errorf("failed to look up user: %w", err)
+	}
+	return isRoot, nil
+}
+
 func (s *Store) CreateUser(ctx context.Context, username, passwordHash string, isAdmin bool) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO users(
@@ -83,16 +97,21 @@ func (s *Store) SuspendUser(ctx context.Context, username string) error {
 	return nil
 }
 
-func (s *Store) isRootUser(ctx context.Context, username string) (bool, error) {
-	var isRoot bool
-	err := s.db.QueryRowContext(ctx, `
-		SELECT is_root FROM users WHERE username = ?
-		;`, username).Scan(&isRoot)
+func (s *Store) UnsuspendUser(ctx context.Context, username string) error {
+	isRoot, err := s.isRootUser(ctx, username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, ErrUserNotFound
-		}
-		return false, fmt.Errorf("failed to look up user: %w", err)
+		return err
 	}
-	return isRoot, nil
+	if isRoot {
+		return ErrIsRoot
+	}
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE users
+		SET is_suspended = 0
+		WHERE username = ? AND is_root = 0
+		;`, username)
+	if err != nil {
+		return fmt.Errorf("failed to unsuspend user '%s': %w", username, err)
+	}
+	return nil
 }
