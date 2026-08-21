@@ -189,6 +189,14 @@ func TestPromoteDemoteUser(t *testing.T) {
 	assert.False(t, user.IsAdmin)
 }
 
+func TestPromoteUser_IsRoot(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	err := store.PromoteUser(ctx, "admin")
+	assert.ErrorIs(t, err, ErrIsRoot)
+}
+
 func TestDemoteUser_IsRoot(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
