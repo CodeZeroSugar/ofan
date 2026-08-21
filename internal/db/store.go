@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	_ "modernc.org/sqlite"
 )
 
 type Store struct {
@@ -24,6 +26,10 @@ func NewStore(ctx context.Context, dbPath, adminUser, adminPassHash string) (*St
 	}
 
 	return store, nil
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
 }
 
 func (s *Store) migrate(ctx context.Context, adminUser, adminPassHash string) error {
