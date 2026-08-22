@@ -46,14 +46,10 @@ func TestDeleteServer(t *testing.T) {
 	err := store.CreateServer(ctx, "alpha", "admin")
 	require.NoError(t, err)
 
-	owner, err := store.GetServerOwner(ctx, "alpha")
-	assert.NoError(t, err)
-	assert.Equal(t, "admin", owner)
-
 	err = store.DeleteServer(ctx, "alpha")
 	require.NoError(t, err)
 
-	owner, err = store.GetServerOwner(ctx, "alpha")
+	owner, err := store.GetServerOwner(ctx, "alpha")
 	assert.ErrorIs(t, err, ErrServerNotFound)
 	assert.Equal(t, "", owner)
 }
@@ -66,7 +62,7 @@ func TestDeleteServer_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrServerNotFound)
 }
 
-func TestGetServerOwnerNotFound(t *testing.T) {
+func TestGetServerOwner_NotFound(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
@@ -75,7 +71,7 @@ func TestGetServerOwnerNotFound(t *testing.T) {
 	assert.Equal(t, "", owner)
 }
 
-func TestListServersByOwner_Transfer(t *testing.T) {
+func TestListServersByOwner(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
@@ -100,15 +96,31 @@ func TestListServersByOwner_Transfer(t *testing.T) {
 	assert.Nil(t, adminServers)
 	assert.NoError(t, err)
 
-	assert.ObjectsAreEqual([]string{"alpha", "bravo"}, bobServers)
-	assert.ObjectsAreEqual([]string{"charlie"}, aliceServers)
+	assert.ElementsMatch(t, []string{"alpha", "bravo"}, bobServers)
+	assert.ElementsMatch(t, []string{"charlie"}, aliceServers)
+}
 
-	// Test: Transfer server
+func TestTransferServer(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	err := store.CreateUser(ctx, "bob", "hash123", false)
+	require.NoError(t, err)
+	err = store.CreateUser(ctx, "alice", "hash123", false)
+	require.NoError(t, err)
+
+	err = store.CreateServer(ctx, "alpha", "bob")
+	require.NoError(t, err)
+	err = store.CreateServer(ctx, "bravo", "bob")
+	require.NoError(t, err)
+
+	err = store.CreateServer(ctx, "charlie", "alice")
+	require.NoError(t, err)
+
 	err = store.TransferServer(ctx, "bravo", "alice")
 	require.NoError(t, err)
-	aliceServers, err = store.ListServersByOwner(ctx, "alice")
+	owner, err := store.GetServerOwner(ctx, "bravo")
 	require.NoError(t, err)
-	assert.ObjectsAreEqual([]string{"charlie", "bravo"}, aliceServers)
+	assert.Equal(t, "alice", owner)
 }
 
 func TestTransferServer_BadOwner(t *testing.T) {
