@@ -43,7 +43,7 @@ func (m *Manager) AuthMiddleware(next http.Handler) http.Handler {
 		user, err := m.store.GetUserByID(r.Context(), claims.UserID)
 		if err != nil {
 			if errors.Is(err, db.ErrUserNotFound) {
-				http.Error(w, err.Error(), http.StatusNotFound)
+				http.Error(w, err.Error(), http.StatusUnauthorized)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -62,4 +62,52 @@ func (m *Manager) AuthMiddleware(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := UserFromContext(r.Context())
+		if user == nil {
+			http.Error(w, "user not in context", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := UserFromContext(r.Context())
+		if user == nil {
+			http.Error(w, "user not in context", http.StatusUnauthorized)
+			return
+		}
+
+		if !user.IsAdmin && !user.IsRoot {
+			http.Error(w, "insufficient permissions", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func RequireRoot(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := UserFromContext(r.Context())
+		if user == nil {
+			http.Error(w, "user not in context", http.StatusUnauthorized)
+			return
+		}
+
+		if !user.IsRoot {
+			http.Error(w, "insufficient permissions", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func UserFromContext(ctx context.Context) *db.User {
+	u, _ := ctx.Value(userKey).(*db.User)
+	return u
 }
