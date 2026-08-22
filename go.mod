@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.12.0
 	k8s.io/api v0.36.3

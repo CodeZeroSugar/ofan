@@ -12,6 +12,10 @@ type Config struct {
 	Port             string
 	DefaultNamespace string
 	KubeConfigPath   string
+	DBPath           string
+	SessionSecret    string
+	RootUser         string
+	RootPass         string
 }
 
 func loadConfig() Config {
