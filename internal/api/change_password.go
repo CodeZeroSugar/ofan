@@ -9,9 +9,8 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 )
 
-func (c *ApiConfig) HandlerChangePassword(w http.ResponseWriter, r http.Request) {
+func (c *ApiConfig) HandlerChangePassword(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Username    string `json:"username"`
 		NewPassword string `json:"new_password"`
 	}
 	var params parameters
@@ -25,6 +24,10 @@ func (c *ApiConfig) HandlerChangePassword(w http.ResponseWriter, r http.Request)
 		return
 	}
 	user := auth.UserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	newHash, err := auth.HashPassword(params.NewPassword)
 	if err != nil {
 		log.Printf("failed to hash new password for user '%s': %v", user.Username, err)
