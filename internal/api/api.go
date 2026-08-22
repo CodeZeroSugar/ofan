@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/CodeZeroSugar/ofan/internal/auth"
+	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 	"k8s.io/client-go/kubernetes"
 )
@@ -18,6 +20,8 @@ type ApiConfig struct {
 	Clientset       kubernetes.Interface
 	InformerManager *k8s.InformerManager
 	Namespace       string
+	Store           *db.Store
+	Auth            *auth.Manager
 }
 
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {

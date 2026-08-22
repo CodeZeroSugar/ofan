@@ -51,7 +51,7 @@ func (m *Manager) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if user.IsSuspended {
-			http.Error(w, "authentication rejected, please talk to an admin", http.StatusUnauthorized)
+			http.Error(w, "account suspended", http.StatusUnauthorized)
 			return
 		}
 		ctx := context.WithValue(r.Context(), userKey, user)
