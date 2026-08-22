@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 )
@@ -43,7 +44,7 @@ func (c *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenString, err := c.Auth.IssueJWT(user.ID, user.Username)
+	tokenString, err := c.Auth.IssueJWT(user.ID, user.Username, 60*time.Minute)
 	if err != nil {
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return

@@ -27,13 +27,13 @@ func NewManager(store *db.Store, secret []byte) *Manager {
 	}
 }
 
-func (m *Manager) IssueJWT(userID int64, username string) (string, error) {
+func (m *Manager) IssueJWT(userID int64, username string, expiresIn time.Duration) (string, error) {
 	now := time.Now().UTC()
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(60 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiresIn)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			Issuer:    "ofan",
 			Subject:   fmt.Sprintf("%d", userID),
@@ -49,7 +49,7 @@ func (m *Manager) VerifyJWT(token string) (*Claims, error) {
 
 	parsed, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpeced signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return m.secret, nil
 	})
