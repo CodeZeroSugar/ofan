@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
+	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/web"
 )
 
@@ -37,12 +38,24 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 		cancel:     cancel,
 	}
 
+	apiMux := http.NewServeMux()
+
+	// Auth protected handlers
+	apiMux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
+	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
+	apiMux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
+
+	apiMux.HandleFunc("POST /api/v1/auth/logout", s.apiCfg.HandlerLogout)
+	apiMux.HandleFunc("POST /api/v1/auth/password", s.apiCfg.HandlerChangePassword)
+
+	// System command handlers
+	apiMux.Handle("POST /api/v1/system/shutdown", auth.RequireRoot(http.HandlerFunc(s.handlerShutdown)))
+
+	// Public handlers
+	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))
+	mux.HandleFunc("POST /api/v1/auth/login", s.apiCfg.HandlerLogin)
 	mux.HandleFunc("GET /", s.handlerIndex)
 	mux.HandleFunc("GET /healthz", s.handlerReadiness)
-	mux.HandleFunc("POST /admin/shutdown", s.handlerShutdown)
-	mux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
-	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
-	mux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
 
 	return s, nil
 }

@@ -31,6 +31,10 @@ func loadConfig() Config {
 		Port:             getEnv("PORT", "8080"),
 		DefaultNamespace: getEnv("DEFAULT_NAMESPACE", "ofan-dev"),
 		KubeConfigPath:   getEnv("KUBECONFIG_PATH", filepath.Join(homeDir, ".kube", "config")),
+		DBPath:           getEnv("OFAN_DB_PATH", "./data/ofan.db"),
+		SessionSecret:    getEnv("OFAN_SESSION_SECRET", ""),
+		RootUser:         getEnv("OFAN_ROOT_USER", "ofan-root"),
+		RootPass:         getEnv("OFAN_ROOT_PASS", ""),
 	}
 }
 
