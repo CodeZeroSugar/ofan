@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -47,10 +48,16 @@ func (m *Manager) VerifyJWT(token string) (*Claims, error) {
 	claims := &Claims{}
 
 	parsed, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpeced signing method: %v", t.Header["alg"])
+		}
 		return m.secret, nil
 	})
-	if err != nil || !parsed.Valid {
+	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+	if !parsed.Valid {
+		return nil, errors.New("invalid token")
 	}
 	return claims, nil
 }
