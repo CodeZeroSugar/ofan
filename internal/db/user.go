@@ -216,3 +216,27 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	}
 	return &user, nil
 }
+
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, username, is_root, is_admin, is_suspended
+		FROM users
+		;`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get list of users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Username, &user.IsRoot, &user.IsAdmin, &user.IsSuspended); err != nil {
+			return nil, fmt.Errorf("failed to scan row for user properties: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user rows: %w", err)
+	}
+	return users, nil
+}

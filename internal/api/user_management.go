@@ -270,3 +270,6 @@ func (c *ApiConfig) HandlerResetPassword(w http.ResponseWriter, r *http.Request)
 		respondWithJson(w, http.StatusOK, resp)
 	}
 }
+
+func (c *ApiConfig) HandlerListUsers(w http.ResponseWriter, r *http.Request) {
+}
