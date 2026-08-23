@@ -220,3 +220,165 @@ func TestMiddleware_GateAllowsFlaggedUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, called)
 }
+
+func TestGuard_RequireAuthNoUser(t *testing.T) {
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	rec := httptest.NewRecorder()
+
+	RequireAuth(next).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.False(t, called)
+}
+
+func TestGuard_RequireAuthUserPresent(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  true,
+	}
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireAuth(next).ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	require.NotNil(t, gotUser)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
+func TestGuard_RequireAdminPlainUser(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  false,
+	}
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireAdmin(next).ServeHTTP(rec, req)
+
+	assert.False(t, called)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestGuard_RequireAdminPass(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  true,
+	}
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireAdmin(next).ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
+func TestGuard_RequireAdminRootPass(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  true,
+		IsRoot:   true,
+	}
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireAdmin(next).ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
+func TestGuard_RequireRootNonRoot(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  true,
+		IsRoot:   false,
+	}
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireRoot(next).ServeHTTP(rec, req)
+
+	assert.False(t, called)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestGuard_RequireRootPass(t *testing.T) {
+	user := &db.User{
+		ID:       1,
+		Username: "bob",
+		IsAdmin:  true,
+		IsRoot:   true,
+	}
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req = req.WithContext(context.WithValue(req.Context(), userKey, user))
+	rec := httptest.NewRecorder()
+
+	RequireRoot(next).ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
