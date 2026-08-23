@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/CodeZeroSugar/ofan/internal/auth"
+	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,10 +24,19 @@ type apiSuite struct {
 }
 
 func (s *apiSuite) SetupTest() {
+	adminHash, err := auth.HashPassword("testpass")
+	s.Require().NoError(err)
+
+	store, err := db.NewStore(context.Background(), "file::memory:", "admin", adminHash)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { store.Close() })
+
 	s.cfg = &ApiConfig{
 		Clientset:       fake.NewSimpleClientset(),
 		InformerManager: &k8s.InformerManager{Registry: k8s.NewServerRegistry()},
 		Namespace:       "ofan-dev",
+		Store:           store,
+		Auth:            auth.NewManager(store, []byte("testsecret")),
 	}
 }
 
