@@ -272,4 +272,12 @@ func (c *ApiConfig) HandlerResetPassword(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *ApiConfig) HandlerListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := c.Store.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("failed to return list of users: %v", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, users)
 }

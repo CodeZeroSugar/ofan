@@ -55,6 +55,14 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 
 	// Admin role protected
 	adminMux := http.NewServeMux()
+	adminMux.HandleFunc("POST /api/v1/admin/users/create", s.apiCfg.HandlerCreateUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/delete/{username}", s.apiCfg.HandlerDeleteUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/suspend/{username}", s.apiCfg.HandlerSuspendUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/unsuspend/{username}", s.apiCfg.HandlerUnsuspendUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/promote/{username}", s.apiCfg.HandlerPromoteUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/demote/{username}", s.apiCfg.HandlerDemoteUser)
+	adminMux.HandleFunc("POST /api/v1/admin/users/reset_password", s.apiCfg.HandlerResetPassword)
+	adminMux.HandleFunc("GET /api/v1/admin/users", s.apiCfg.HandlerListUsers)
 	apiMux.Handle("/api/v1/admin/", auth.RequireAdmin(adminMux))
 
 	// Public handlers

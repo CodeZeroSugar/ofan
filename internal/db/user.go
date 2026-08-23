@@ -14,15 +14,15 @@ var (
 )
 
 type User struct {
-	ID                 int64
-	Username           string
-	PasswordHash       string
-	IsRoot             bool
-	IsAdmin            bool
-	IsSuspended        bool
-	MustChangePassword bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                 int64     `json:"id"`
+	Username           string    `json:"username"`
+	PasswordHash       string    `json:"-"`
+	IsRoot             bool      `json:"is_root"`
+	IsAdmin            bool      `json:"is_admin"`
+	IsSuspended        bool      `json:"is_suspended"`
+	MustChangePassword bool      `json:"must_change_password"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 func (s *Store) isRootUser(ctx context.Context, username string) (bool, error) {
@@ -219,7 +219,7 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, username, is_root, is_admin, is_suspended
+		SELECT id, username, is_root, is_admin, is_suspended, created_at, updated_at
 		FROM users
 		;`)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Username, &user.IsRoot, &user.IsAdmin, &user.IsSuspended); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &user.IsRoot, &user.IsAdmin, &user.IsSuspended, &user.CreatedAt, &user.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan row for user properties: %w", err)
 		}
 		users = append(users, user)
