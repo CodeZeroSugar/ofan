@@ -38,9 +38,9 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 		cancel:     cancel,
 	}
 
+	// Auth protected handlers
 	apiMux := http.NewServeMux()
 
-	// Auth protected handlers
 	apiMux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
 	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
 	apiMux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
@@ -48,8 +48,14 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 	apiMux.HandleFunc("POST /api/v1/auth/logout", s.apiCfg.HandlerLogout)
 	apiMux.HandleFunc("POST /api/v1/auth/password", s.apiCfg.HandlerChangePassword)
 
-	// System command handlers
-	apiMux.Handle("POST /api/v1/system/shutdown", auth.RequireRoot(http.HandlerFunc(s.handlerShutdown)))
+	// System command handlers, root protected
+	rootMux := http.NewServeMux()
+	rootMux.HandleFunc("POST /api/v1/system/shutdown", s.handlerShutdown)
+	apiMux.Handle("/api/v1/system/", auth.RequireRoot(rootMux))
+
+	// Admin role protected
+	adminMux := http.NewServeMux()
+	apiMux.Handle("/api/v1/admin/", auth.RequireAdmin(adminMux))
 
 	// Public handlers
 	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))

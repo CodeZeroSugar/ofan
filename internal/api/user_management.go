@@ -67,3 +67,206 @@ func (c *ApiConfig) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	respondWithJson(w, http.StatusCreated, resp)
 }
+
+func rejectSelf(w http.ResponseWriter, r *http.Request, username string) bool {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+	return userCtx.Username == username
+}
+
+func (c *ApiConfig) HandlerDeleteUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+
+	if rejectSelf(w, r, username) {
+		http.Error(w, "cannot delete self", http.StatusForbidden)
+		return
+	}
+
+	servers, err := c.Store.ListServersByOwner(r.Context(), username)
+	if err != nil {
+		log.Printf("failed to check for servers owned by '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("something went wrong, user '%s' not deleted", username), http.StatusInternalServerError)
+		return
+	}
+
+	if len(servers) > 0 {
+		http.Error(w, fmt.Sprintf("user '%s' owns %d server(s) (%s) - transfer or delete them first", username, len(servers), strings.Join(servers, ", ")), http.StatusConflict)
+		return
+	}
+
+	err = c.Store.DeleteUser(r.Context(), username)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to delete user '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("failed to delete user '%s'", username), http.StatusInternalServerError)
+		return
+	default:
+		respondWithJson(w, http.StatusOK, struct {
+			Message string `json:"message"`
+		}{Message: fmt.Sprintf("user '%s' successfully deleted", username)})
+	}
+}
+
+func (c *ApiConfig) HandlerSuspendUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+
+	if rejectSelf(w, r, username) {
+		http.Error(w, "cannot suspend self", http.StatusForbidden)
+		return
+	}
+
+	err := c.Store.SuspendUser(r.Context(), username)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to suspend user '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("failed to suspend user '%s'", username), http.StatusInternalServerError)
+		return
+	default:
+		respondWithJson(w, http.StatusOK, struct {
+			Message string `json:"message"`
+		}{Message: fmt.Sprintf("user '%s' successfully suspended", username)})
+	}
+}
+
+func (c *ApiConfig) HandlerUnsuspendUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+
+	if rejectSelf(w, r, username) {
+		http.Error(w, "cannot unsuspend self", http.StatusForbidden)
+		return
+	}
+
+	err := c.Store.UnsuspendUser(r.Context(), username)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to unsuspend user '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("failed to unsuspend user '%s'", username), http.StatusInternalServerError)
+		return
+	default:
+		respondWithJson(w, http.StatusOK, struct {
+			Message string `json:"message"`
+		}{Message: fmt.Sprintf("user '%s' successfully unsuspended", username)})
+	}
+}
+
+func (c *ApiConfig) HandlerPromoteUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+
+	if rejectSelf(w, r, username) {
+		http.Error(w, "cannot promote self", http.StatusForbidden)
+		return
+	}
+
+	err := c.Store.PromoteUser(r.Context(), username)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to promote user '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("failed to promote user '%s'", username), http.StatusInternalServerError)
+		return
+	default:
+		respondWithJson(w, http.StatusOK, struct {
+			Message string `json:"message"`
+		}{Message: fmt.Sprintf("user '%s' successfully promoted", username)})
+	}
+}
+
+func (c *ApiConfig) HandlerDemoteUser(w http.ResponseWriter, r *http.Request) {
+	username := r.PathValue("username")
+
+	if rejectSelf(w, r, username) {
+		http.Error(w, "cannot demote self", http.StatusForbidden)
+		return
+	}
+
+	err := c.Store.DemoteUser(r.Context(), username)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to demote user '%s': %v", username, err)
+		http.Error(w, fmt.Sprintf("failed to demote user '%s'", username), http.StatusInternalServerError)
+		return
+	default:
+		respondWithJson(w, http.StatusOK, struct {
+			Message string `json:"message"`
+		}{Message: fmt.Sprintf("user '%s' successfully demoted", username)})
+	}
+}
+
+func (c *ApiConfig) HandlerResetPassword(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Username     string `json:"username"`
+		TempPassword string `json:"temp_password"`
+	}
+	var params parameters
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, "invalid json payload", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(params.Username) == "" || strings.TrimSpace(params.TempPassword) == "" {
+		http.Error(w, "username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	tempHash, err := auth.HashPassword(params.TempPassword)
+	if err != nil {
+		log.Printf("failed to hash temp password for user '%s': %v", params.Username, err)
+		http.Error(w, "something went wrong, password reset failed", http.StatusInternalServerError)
+		return
+	}
+
+	err = c.Store.ResetPassword(r.Context(), params.Username, tempHash)
+	switch {
+	case errors.Is(err, db.ErrUserNotFound):
+		http.Error(w, db.ErrUserNotFound.Error(), http.StatusNotFound)
+		return
+	case errors.Is(err, db.ErrIsRoot):
+		http.Error(w, db.ErrIsRoot.Error(), http.StatusForbidden)
+		return
+	case err != nil:
+		log.Printf("failed to reset password for user '%s': %v", params.Username, err)
+		http.Error(w, fmt.Sprintf("failed to reset password for user '%s'", params.Username), http.StatusInternalServerError)
+		return
+	default:
+		resp := struct {
+			Username string `json:"username"`
+			Message  string `json:"message"`
+		}{
+			Username: params.Username,
+			Message:  fmt.Sprintf("password for user '%s' successfully reset. Password must be changed on next login", params.Username),
+		}
+		respondWithJson(w, http.StatusOK, resp)
+	}
+}
