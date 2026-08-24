@@ -36,6 +36,13 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	owner := auth.UserFromContext(r.Context())
+	if owner == nil {
+		log.Println("could not determine server owner from context, game server not created")
+		http.Error(w, "could not determine server owner, game server not created", http.StatusInternalServerError)
+		return
+	}
+
 	opts := req.ToOpts()
 	opts.Namespace = c.Namespace
 
@@ -58,6 +65,12 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	if err := c.Store.CreateServer(r.Context(), opts.Name, owner.Username); err != nil {
+		log.Printf("failed to write new server ('%s') for owner ('%s') to db: %v", opts.Name, owner.Username, err)
+		http.Error(w, "something went wrong, game server not created", http.StatusInternalServerError)
+		return
+	}
+
 	mgr := k8s.NewServerManager(c.Clientset, opts)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -73,6 +86,7 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		log.Printf("failed to provision new server: %v", err)
 		http.Error(w, fmt.Sprintf("provisioning failed: %v\n", err), http.StatusInternalServerError)
 		c.InformerManager.Registry.Delete(opts.Name)
+		c.Store.DeleteServer(context.Background(), opts.Name)
 		return
 	}
 
