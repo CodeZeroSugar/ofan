@@ -44,7 +44,7 @@ func (r *ServerRegistry) Get(name string) (*ServerState, bool) {
 func (r *ServerRegistry) List() []*ServerState {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var states []*ServerState
+	states := make([]*ServerState, 0)
 	for _, state := range r.servers {
 		states = append(states, state)
 	}

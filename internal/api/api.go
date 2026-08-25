@@ -1,14 +1,13 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"time"
+	"slices"
 
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/internal/db"
@@ -22,6 +21,7 @@ type ApiConfig struct {
 	Namespace       string
 	Store           *db.Store
 	Auth            *auth.Manager
+	Poke            func()
 }
 
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
@@ -65,16 +65,22 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if err := c.Store.CreateServer(r.Context(), opts.Name, owner.Username); err != nil {
-		log.Printf("failed to write new server ('%s') for owner ('%s') to db: %v", opts.Name, owner.Username, err)
+	configJson, err := json.Marshal(opts.Config)
+	if err != nil {
+		log.Printf("failed to marshal config into json for server '%s': %w", opts.Name, err)
 		http.Error(w, "something went wrong, game server not created", http.StatusInternalServerError)
 		return
 	}
 
-	mgr := k8s.NewServerManager(c.Clientset, opts)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	if err := c.Store.CreateServer(r.Context(), opts.Name, owner.Username, string(configJson)); err != nil {
+		if errors.Is(err, db.ErrServerExists) {
+			http.Error(w, fmt.Sprintf("game server '%s' already exists", opts.Name), http.StatusConflict)
+			return
+		}
+		log.Printf("failed to write new server ('%s') for owner ('%s') to db: %v", opts.Name, owner.Username, err)
+		http.Error(w, "something went wrong, game server not created", http.StatusInternalServerError)
+		return
+	}
 
 	c.InformerManager.Registry.Upsert(opts.Name, func(s *k8s.ServerState) {
 		s.Namespace = opts.Namespace
@@ -82,12 +88,8 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		s.Replicas = opts.Replicas
 	})
 
-	if err := mgr.CreateAll(ctx); err != nil {
-		log.Printf("failed to provision new server: %v", err)
-		http.Error(w, fmt.Sprintf("provisioning failed: %v\n", err), http.StatusInternalServerError)
-		c.InformerManager.Registry.Delete(opts.Name)
-		c.Store.DeleteServer(context.Background(), opts.Name)
-		return
+	if c.Poke != nil {
+		c.Poke()
 	}
 
 	data := provisionResponse{
@@ -96,17 +98,33 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		ServerOptions: opts,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("failed to encode response: %v", err)
-	}
+	respondWithJson(w, http.StatusAccepted, data)
 }
 
 func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Request) {
 	serverName := r.PathValue("server_name")
 	if serverName == "" {
 		http.Error(w, "server name path parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	srvRec, err := c.Store.GetServer(r.Context(), serverName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("attempted to delete server '%s' but it does not exist", serverName), http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("something went wrong, server '%s' not deleted", serverName), http.StatusInternalServerError)
+		return
+	}
+
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if userCtx.Username != srvRec.Owner && !userCtx.IsAdmin {
+		http.Error(w, "only server owner or admin can delete", http.StatusForbidden)
 		return
 	}
 
@@ -118,44 +136,73 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	ns := c.Namespace
-	if state, ok := c.InformerManager.Registry.Get(serverName); ok && state.Namespace != "" {
-		ns = state.Namespace
+	if req.DeleteStorage && (userCtx.Username != srvRec.Owner && !userCtx.IsRoot) {
+		if userCtx.IsAdmin {
+			http.Error(w, "must transfer ownership first", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "only server owner and root user can delete persistent storage", http.StatusForbidden)
+		return
 	}
 
-	opts := k8s.ServerOpts{
-		Name:      serverName,
-		Namespace: ns,
-	}
-
-	mgr := k8s.NewServerManager(c.Clientset, opts)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := mgr.DeleteAll(ctx, req.DeleteStorage); err != nil {
-		http.Error(w, fmt.Sprintf("k8s teardown failed: %v", err), http.StatusInternalServerError)
+	if err = c.Store.MarkDeleting(r.Context(), serverName, req.DeleteStorage); err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("attempted to mark server '%s' for deletion, but it does not exist", serverName), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to mark server '%s' for deletion: %v", serverName, err)
+		http.Error(w, fmt.Sprintf("something went wrong, server '%s' not deleted", serverName), http.StatusInternalServerError)
 		return
 	}
 
 	if _, ok := c.InformerManager.Registry.Get(serverName); ok {
-		c.InformerManager.Registry.Upsert(opts.Name, func(s *k8s.ServerState) {
+		c.InformerManager.Registry.Upsert(serverName, func(s *k8s.ServerState) {
 			s.Status = "deleting"
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	if err := json.NewEncoder(w).Encode(DeleteServerResponse{
+	if c.Poke != nil {
+		c.Poke()
+	}
+
+	resp := DeleteServerResponse{
 		ServerName:    serverName,
 		Status:        "deleting",
 		StoragePurged: req.DeleteStorage,
-	}); err != nil {
-		log.Printf("failed to send delete server response for server %s: %v", serverName, err)
 	}
+	respondWithJson(w, http.StatusAccepted, resp)
 }
 
 func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(c.InformerManager.Registry.List())
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	stateList := c.InformerManager.Registry.List()
+	if len(stateList) == 0 {
+		respondWithJson(w, http.StatusOK, stateList)
+		return
+	}
+
+	if userCtx.IsRoot || userCtx.IsAdmin {
+		respondWithJson(w, http.StatusOK, stateList)
+		return
+	}
+
+	srvNames, err := c.Store.ListServersByOwner(r.Context(), userCtx.Username)
+	if err != nil {
+		log.Printf("failed to get servers owned by '%s': %v", userCtx.Username, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	filtered := make([]*k8s.ServerState, 0)
+	for _, s := range stateList {
+		if slices.Contains(srvNames, s.Name) {
+			filtered = append(filtered, s)
+		}
+	}
+	respondWithJson(w, http.StatusOK, filtered)
 }
