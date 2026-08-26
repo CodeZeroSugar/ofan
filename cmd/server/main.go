@@ -12,6 +12,7 @@ import (
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
 	"github.com/CodeZeroSugar/ofan/internal/auth"
+	"github.com/CodeZeroSugar/ofan/internal/controller"
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
@@ -49,12 +50,16 @@ func main() {
 		log.Fatalf("failed to start informers: %v", err)
 	}
 
+	ctrl := controller.NewController(store, clientset, informerMgr.Registry, cfg.DefaultNamespace)
+	go ctrl.Run(ctx)
+
 	apiCfg := &api.ApiConfig{
 		Clientset:       clientset,
 		InformerManager: informerMgr,
 		Namespace:       cfg.DefaultNamespace,
 		Store:           store,
 		Auth:            authManager,
+		Poke:            ctrl.Poke,
 	}
 
 	srv, err := newServer(cfg.Port, apiCfg, cancel)
