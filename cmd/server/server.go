@@ -44,6 +44,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 	apiMux.HandleFunc("POST /api/v1/servers/create", s.apiCfg.HandlerCreateGameServer)
 	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.apiCfg.HandlerDeleteGameServer)
 	apiMux.HandleFunc("GET /api/v1/servers", s.apiCfg.HandlerListGameServers)
+	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.apiCfg.HandlerTransferServer)
 
 	apiMux.HandleFunc("POST /api/v1/auth/logout", s.apiCfg.HandlerLogout)
 	apiMux.HandleFunc("POST /api/v1/auth/password", s.apiCfg.HandlerChangePassword)

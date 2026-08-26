@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/internal/db"
@@ -205,4 +206,62 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	respondWithJson(w, http.StatusOK, filtered)
+}
+
+func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	serverName := r.PathValue("server_name")
+	type parameters struct {
+		NewOwner string `json:"new_owner"`
+	}
+
+	var params parameters
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, "invalid json payload", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(params.NewOwner) == "" {
+		http.Error(w, "new_owner is required", http.StatusBadRequest)
+		return
+	}
+
+	srvRec, err := c.Store.GetServer(r.Context(), serverName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, "server does not exist, cannot transfer ownership", http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to get server record from db for server '%s': %w", serverName, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if userCtx.Username != srvRec.Owner && !userCtx.IsAdmin {
+		http.Error(w, "must be server owner or admin to transfer ownership", http.StatusForbidden)
+		return
+	}
+
+	if _, err := c.Store.GetUserByUsername(r.Context(), params.NewOwner); err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
+			http.Error(w, "user does not exist", http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to check if '%s' exists in db, server '%s' ownership not transferred", params.NewOwner, serverName)
+		http.Error(w, "something went wrong, server ownership not transferred", http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.Store.TransferServer(r.Context(), serverName, params.NewOwner); err != nil {
+		log.Printf("failed to transfer ownership of server '%s' from '%s' to '%s': %w", serverName, userCtx.Username, params.NewOwner, err)
+		http.Error(w, "something went wrong, failed to transfer server ownership", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, struct {
+		Message string `json:"message"`
+	}{Message: fmt.Sprintf("successfully transferred server '%s' from '%s' to '%s'", serverName, userCtx.Username, params.NewOwner)})
 }
