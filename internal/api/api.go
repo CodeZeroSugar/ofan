@@ -55,7 +55,7 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 
 	configJson, err := json.Marshal(opts.Config)
 	if err != nil {
-		log.Printf("failed to marshal config into json for server '%s': %w", opts.Name, err)
+		log.Printf("failed to marshal config into json for server '%s': %v", opts.Name, err)
 		http.Error(w, "something went wrong, game server not created", http.StatusInternalServerError)
 		return
 	}
@@ -222,7 +222,7 @@ func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request
 			http.Error(w, "server does not exist, cannot transfer ownership", http.StatusNotFound)
 			return
 		}
-		log.Printf("failed to get server record from db for server '%s': %w", serverName, err)
+		log.Printf("failed to get server record from db for server '%s': %v", serverName, err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
@@ -243,7 +243,7 @@ func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := c.Store.TransferServer(r.Context(), serverName, params.NewOwner); err != nil {
-		log.Printf("failed to transfer ownership of server '%s' from '%s' to '%s': %w", serverName, userCtx.Username, params.NewOwner, err)
+		log.Printf("failed to transfer ownership of server '%s' from '%s' to '%s': %v", serverName, userCtx.Username, params.NewOwner, err)
 		http.Error(w, "something went wrong, failed to transfer server ownership", http.StatusInternalServerError)
 		return
 	}

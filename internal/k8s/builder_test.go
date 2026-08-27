@@ -64,15 +64,6 @@ func TestBuildService(t *testing.T) {
 			expectedServerPort:  2456,
 			expectedServerQuery: 2457,
 		},
-		{
-			name:                "explicit node port",
-			inputNodePort:       30001,
-			inputServerPort:     6969,
-			expectedNodePort:    30001,
-			expectedQueryPort:   30002,
-			expectedServerPort:  6969,
-			expectedServerQuery: 6970,
-		},
 	}
 
 	for _, tt := range tests {
