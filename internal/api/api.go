@@ -52,19 +52,6 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("game server '%s' already exists", opts.Name), http.StatusConflict)
 		return
 	}
-	// Put port in use check here
-	if np := opts.NodePort; np > 0 {
-		if name := c.InformerManager.Registry.PortInUse(np); name != "" {
-			log.Printf("node_port %d already in use by server '%s'", np, name)
-			http.Error(w, fmt.Sprintf("node_port %d already in use by server '%s'", np, name), http.StatusConflict)
-			return
-		}
-		if name := c.InformerManager.Registry.PortInUse(np + 1); name != "" {
-			log.Printf("node_port %d (query) already in use by server '%s'", np+1, name)
-			http.Error(w, fmt.Sprintf("node_port %d already in use by server '%s'", np+1, name), http.StatusConflict)
-			return
-		}
-	}
 
 	configJson, err := json.Marshal(opts.Config)
 	if err != nil {

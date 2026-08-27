@@ -22,9 +22,6 @@ func (s *CreateGameServer) ToOpts() k8s.ServerOpts {
 		config = &s.ServerOpts.Config
 	}
 	opts := k8s.NewServerOpts(s.Name, s.Password, config)
-	if s.ServerOpts != nil && s.ServerOpts.NodePort != 0 {
-		opts.NodePort = s.ServerOpts.NodePort
-	}
 	return opts
 }
 
@@ -48,9 +45,6 @@ func (s *CreateGameServer) Validate() error {
 		return fmt.Errorf("server_port must be in range 1-65534, got %d", p)
 	}
 
-	if np := s.ServerOpts.NodePort; np != 0 && (np < 30000 || np > 32766) {
-		return fmt.Errorf("node_port must be 0 (auto-assign) or in range 30000-32766, got %d", np)
-	}
 	return nil
 }
 

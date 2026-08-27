@@ -97,15 +97,11 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 		return fmt.Errorf("attempted to unmarshal corrupt config for server '%s': %w", row.Name, err)
 	}
 
-	srvState, exists := c.registry.Get(row.Name)
-	if !exists {
+	if _, exists := c.registry.Get(row.Name); !exists {
 		return nil
 	}
 
 	opts := k8s.NewServerOpts(valConfig.CoreSettings.ServerName, valConfig.CoreSettings.ServerPass, &valConfig)
-	if srvState != nil {
-		opts.NodePort = srvState.NodePort
-	}
 	opts.Namespace = c.namespace
 	mgr := k8s.NewServerManager(c.clientset, opts)
 

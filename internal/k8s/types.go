@@ -6,7 +6,6 @@ type ServerOpts struct {
 	Name        string        `json:"name"`
 	Namespace   string        `json:"namespace,omitempty"`
 	Replicas    int32         `json:"replicas"`
-	NodePort    int32         `json:"node_port,omitempty"`
 	StorageSize string        `json:"storage_size,omitempty"`
 	Config      ValheimConfig `json:"config"`
 }
@@ -85,7 +84,6 @@ func NewServerOpts(name, password string, config *ValheimConfig) ServerOpts {
 	opts := ServerOpts{
 		Name:        name,
 		Replicas:    maxReplicas,
-		NodePort:    0,
 		StorageSize: "10Gi",
 	}
 

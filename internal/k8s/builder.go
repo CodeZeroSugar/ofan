@@ -118,11 +118,6 @@ func (m *ServerManager) BuildSecret() *v1.Secret {
 }
 
 func (m *ServerManager) BuildService() *v1.Service {
-	var gameNodePort, queryNodePort int32
-	if m.opts.NodePort > 0 {
-		gameNodePort = m.opts.NodePort
-		queryNodePort = gameNodePort + 1
-	}
 	labels := serverLabels(m.opts.Name)
 	return &v1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -145,14 +140,14 @@ func (m *ServerManager) BuildService() *v1.Service {
 					Protocol:   v1.ProtocolUDP,
 					Port:       m.opts.Config.CoreSettings.ServerPort,
 					TargetPort: intstr.FromInt32(m.opts.Config.CoreSettings.ServerPort),
-					NodePort:   gameNodePort,
+					NodePort:   0,
 				},
 				{
 					Name:       "valheim-query",
 					Protocol:   v1.ProtocolUDP,
 					Port:       m.opts.Config.CoreSettings.ServerPort + 1,
 					TargetPort: intstr.FromInt32(m.opts.Config.CoreSettings.ServerPort + 1),
-					NodePort:   queryNodePort,
+					NodePort:   0,
 				},
 			},
 		},
