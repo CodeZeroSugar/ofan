@@ -71,7 +71,6 @@ func (c *ApiConfig) HandlerCreateUser(w http.ResponseWriter, r *http.Request) {
 func rejectSelf(w http.ResponseWriter, r *http.Request, username string) bool {
 	userCtx := auth.UserFromContext(r.Context())
 	if userCtx == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
 	}
 	return userCtx.Username == username

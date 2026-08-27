@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -38,13 +38,14 @@ func NewController(store *db.Store, clientset kubernetes.Interface, registry *k8
 
 func (c *Controller) Poke() {
 	select {
+	case c.trigger <- struct{}{}:
 	default:
-		c.trigger <- struct{}{}
 	}
 }
 
 func (c *Controller) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -80,6 +81,9 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 	for _, r := range rows {
 		if err := c.convergeRow(ctx, r); err != nil {
 			log.Printf("failed to converge for server '%s': %v", r.Name, err)
+			if incErr := c.store.IncrementFailure(ctx, r.Name); incErr != nil {
+				log.Printf("also failed to increment failures for '%s': %v", r.Name, incErr)
+			}
 		}
 	}
 	c.driftPass(ctx, rowNames)
@@ -94,69 +98,59 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 
 	var valConfig k8s.ValheimConfig
 	if err := json.Unmarshal([]byte(row.ConfigJSON), &valConfig); err != nil {
-		if err := c.store.IncrementFailure(ctx, row.Name); err != nil {
-			return fmt.Errorf("failed to increment failures for server '%s': %w", row.Name, err)
-		}
 		return fmt.Errorf("attempted to unmarshal corrupt config for server '%s': %w", row.Name, err)
 	}
 
+	srvState, exists := c.registry.Get(row.Name)
+	if !exists {
+		return nil
+	}
+
 	opts := k8s.NewServerOpts(valConfig.CoreSettings.ServerName, valConfig.CoreSettings.ServerPass, &valConfig)
+	if srvState != nil {
+		opts.NodePort = srvState.NodePort
+	}
 	mgr := k8s.NewServerManager(c.clientset, opts)
 
 	switch row.DesiredState {
 	case "running":
 		if err := mgr.CreateAll(ctx); err != nil {
-			log.Printf("failed to create all resources for server '%s': %v", opts.Name, err)
-			return nil
+			return err
 		}
 		if err := c.ensureReplicas(ctx, row.Name, opts.Replicas); err != nil {
-			log.Printf("failed to ensure replicas for server '%s': %v", opts.Name, err)
-			return nil
+			return err
 		}
-		if err := c.store.ResetFailures(ctx, row.Name); err != nil {
-			log.Printf("failed to reset failures for server '%s': %w", err)
-			return nil
-		}
+		return c.store.ResetFailures(ctx, row.Name)
 	case "stopped":
 		if err := mgr.CreateAll(ctx); err != nil {
-			log.Printf("failed to create all resources for server '%s': %v", opts.Name, err)
-			return nil
+			return err
 		}
 		if err := c.ensureReplicas(ctx, row.Name, 0); err != nil {
-			log.Printf("failed to ensure replicas for server '%s': %v", opts.Name, err)
-			return nil
+			return err
 		}
-		if err := c.store.ResetFailures(ctx, row.Name); err != nil {
-			log.Printf("failed to reset failures for server '%s': %w", err)
-			return nil
-		}
+		return c.store.ResetFailures(ctx, row.Name)
 	case "deleting":
 		if err := mgr.DeleteAll(ctx, row.PurgeStorage); err != nil {
-			log.Printf("failed to delete resources for server '%s': %v", opts.Name, err)
-			return nil
+			return err
 		}
-		if err := c.store.DeleteServer(ctx, row.Name); err != nil {
-			if errors.Is(err, db.ErrServerNotFound) {
-				log.Printf("failed to delete server '%s' from database because it was not found: %v", row.Name, err)
-				return nil
-			}
-			log.Printf("failed to delete server '%s' from database: %v", row.Name, err)
-			return nil
-		}
+		return c.store.DeleteServer(ctx, row.Name)
 	}
 	return nil
 }
 
 func (c *Controller) ensureReplicas(ctx context.Context, name string, want int32) error {
 	state, exists := c.registry.Get(name)
-	if !exists {
-		return fmt.Errorf("failed to ensure replicas for server '%s', does not exist in registry", name)
-	}
-	if state.Replicas == want {
+	if !exists || state.Replicas == want {
 		return nil
 	}
-	// Not sure how to set replicas from here
-	return nil
+	dep, err := c.clientset.AppsV1().Deployments(c.namespace).Get(ctx, name, v1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get deployment '%s': %w", name, err)
+	}
+	wantCopy := want
+	dep.Spec.Replicas = &wantCopy
+	_, err = c.clientset.AppsV1().Deployments(c.namespace).Update(ctx, dep, v1.UpdateOptions{})
+	return err
 }
 
 func (c *Controller) driftPass(ctx context.Context, rowNames map[string]struct{}) {
@@ -168,9 +162,8 @@ func (c *Controller) driftPass(ctx context.Context, rowNames map[string]struct{}
 		c.driftCounts[s.Name]++
 		if c.driftCounts[s.Name] >= 3 {
 			c.store.MarkDeleting(ctx, s.Name, false)
-			c.driftCounts[s.Name] = 0
+			delete(c.driftCounts, s.Name)
 			log.Printf("server '%s' marked for deletion!", s.Name)
-			// Feel like this isnt quite right yet
 		}
 	}
 }

@@ -219,7 +219,7 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, username, is_root, is_admin, is_suspended, created_at, updated_at
+		SELECT id, username, is_root, is_admin, is_suspended, must_change_password, created_at, updated_at
 		FROM users
 		;`)
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Username, &user.IsRoot, &user.IsAdmin, &user.IsSuspended, &user.CreatedAt, &user.UpdatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &user.IsRoot, &user.IsAdmin, &user.IsSuspended, &user.MustChangePassword, &user.CreatedAt, &user.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan row for user properties: %w", err)
 		}
 		users = append(users, user)
