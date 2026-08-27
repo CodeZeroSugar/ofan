@@ -258,3 +258,22 @@ func (s *Store) ResetFailures(ctx context.Context, name string) error {
 	}
 	return nil
 }
+
+func (s *Store) UpdateState(ctx context.Context, name, desiredState string) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE servers
+		SET desired_state = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE name = ?
+		;`, desiredState, name)
+	if err != nil {
+		return fmt.Errorf("failed to update state for server '%s': %w", name, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to validate if desired_state was set to '%s' for server '%s': %w", desiredState, name, err)
+	}
+	if n == 0 {
+		return ErrServerNotFound
+	}
+	return nil
+}

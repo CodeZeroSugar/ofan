@@ -265,3 +265,92 @@ func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request
 		Message string `json:"message"`
 	}{Message: fmt.Sprintf("successfully transferred server '%s' from '%s' to '%s'", serverName, userCtx.Username, params.NewOwner)})
 }
+
+func (c *ApiConfig) HandlerStartGameServer(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	srvName := r.PathValue("server_name")
+	srvRec, err := c.Store.GetServer(r.Context(), srvName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, db.ErrServerNotFound.Error(), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to retrieve owner for server '%s': %v", srvName, err)
+		http.Error(w, "something went wrong, could not start game server", http.StatusInternalServerError)
+		return
+	}
+
+	if userCtx.Username != srvRec.Owner && !userCtx.IsAdmin {
+		http.Error(w, fmt.Sprintf("only owner of server '%s' or admin may start", srvName), http.StatusForbidden)
+		return
+	}
+
+	if srvRec.DesiredState == "running" {
+		http.Error(w, fmt.Sprintf("server '%s' already running", srvName), http.StatusConflict)
+		return
+	}
+
+	if err := c.Store.UpdateState(r.Context(), srvName, "running"); err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, db.ErrServerNotFound.Error(), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to update state for server '%s' to 'running': %v", srvName, err)
+		http.Error(w, "something went wrong, could not start game server", http.StatusInternalServerError)
+		return
+	}
+	c.Poke()
+	respondWithJson(w, http.StatusOK, struct {
+		Message string `json:"message"`
+	}{Message: fmt.Sprintf("server '%s' successfully started", srvName)})
+}
+
+func (c *ApiConfig) HandlerStopGameServer(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	srvName := r.PathValue("server_name")
+	srvRec, err := c.Store.GetServer(r.Context(), srvName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, db.ErrServerNotFound.Error(), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to retrieve owner for server '%s': %v", srvName, err)
+		http.Error(w, "something went wrong, could not stop game server", http.StatusInternalServerError)
+		return
+	}
+
+	if userCtx.Username != srvRec.Owner && !userCtx.IsAdmin {
+		http.Error(w, fmt.Sprintf("only owner of server '%s' or admin may stop", srvName), http.StatusForbidden)
+		return
+	}
+
+	if srvRec.DesiredState == "stopped" {
+		http.Error(w, fmt.Sprintf("server '%s' already stopped", srvName), http.StatusConflict)
+		return
+	}
+
+	if err := c.Store.UpdateState(r.Context(), srvName, "stopped"); err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, db.ErrServerNotFound.Error(), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to update state for server '%s' to 'stopped': %v", srvName, err)
+		http.Error(w, "something went wrong, could not stop game server", http.StatusInternalServerError)
+		return
+	}
+
+	c.Poke()
+	respondWithJson(w, http.StatusOK, struct {
+		Message string `json:"message"`
+	}{Message: fmt.Sprintf("server '%s' successfully stopped", srvName)})
+}
