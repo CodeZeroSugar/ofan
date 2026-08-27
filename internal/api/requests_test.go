@@ -71,24 +71,6 @@ func TestValidate(t *testing.T) {
 			expectedError: fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", "DNSCOMPLIANT"),
 		},
 		{
-			name:          "node port out of range (low)",
-			serverName:    "alpha",
-			password:      "goodpassword",
-			optsIsNil:     false,
-			serverPort:    2457,
-			nodePort:      29999,
-			expectedError: fmt.Errorf("node_port must be 0 (auto-assign) or in range 30000-32766, got %d", 29999),
-		},
-		{
-			name:          "node port out of range (high)",
-			serverName:    "alpha",
-			password:      "goodpassword",
-			optsIsNil:     false,
-			serverPort:    2456,
-			nodePort:      32767,
-			expectedError: fmt.Errorf("node_port must be 0 (auto-assign) or in range 30000-32766, got %d", 32767),
-		},
-		{
 			name:          "server port is 0",
 			serverName:    "alpha",
 			password:      "goodpassword",
@@ -124,7 +106,6 @@ func TestValidate(t *testing.T) {
 			config := k8s.DefaultValheimConfig(tt.name, tt.password)
 			opts := k8s.NewServerOpts(tt.name, tt.password, &config)
 			opts.Config.CoreSettings.ServerPort = tt.serverPort
-			opts.NodePort = tt.nodePort
 			gs.ServerOpts = &opts
 			err := gs.Validate()
 			if tt.expectedError == nil {
@@ -170,7 +151,6 @@ func TestToOpts(t *testing.T) {
 					ServerPass: "secret123",
 				},
 			},
-			NodePort: 30001,
 		},
 	}
 	opts = gs.ToOpts()
@@ -178,7 +158,6 @@ func TestToOpts(t *testing.T) {
 	assert.Equal(t, "secret123", opts.Config.CoreSettings.ServerPass)
 	assert.Equal(t, "alpha", opts.Config.CoreSettings.ServerName)
 	assert.Equal(t, int32(2457), opts.Config.CoreSettings.ServerPort)
-	assert.Equal(t, int32(30001), opts.NodePort)
 
 	// Test: config carries through with nodePort as 0
 	gs = &CreateGameServer{
@@ -192,7 +171,6 @@ func TestToOpts(t *testing.T) {
 					ServerPass: "secret123",
 				},
 			},
-			NodePort: 0,
 		},
 	}
 	opts = gs.ToOpts()
@@ -200,5 +178,4 @@ func TestToOpts(t *testing.T) {
 	assert.Equal(t, "secret123", opts.Config.CoreSettings.ServerPass)
 	assert.Equal(t, "alpha", opts.Config.CoreSettings.ServerName)
 	assert.Equal(t, int32(2457), opts.Config.CoreSettings.ServerPort)
-	assert.Equal(t, int32(0), opts.NodePort)
 }

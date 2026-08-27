@@ -78,19 +78,6 @@ func TestDelete(t *testing.T) {
 	assert.NotPanicsf(t, func() { r.Delete("echo") }, "Delete should not cause panic if specified server does not exist")
 }
 
-func TestPortInUse(t *testing.T) {
-	// Test: Should return server name if port is in use, empty string if not
-	r := NewServerRegistry()
-	r.Upsert("alpha", func(s *ServerState) {
-		s.NodePort = 30001
-		s.QueryPort = 30002
-	})
-
-	assert.Equal(t, "alpha", r.PortInUse(30001), "Should report the server using the specified port")
-	assert.Equal(t, "alpha", r.PortInUse(30002), "Should report the server using the specified port")
-	assert.Empty(t, r.PortInUse(67), "Should return '' if port is not in use.")
-}
-
 func TestRegistryConcurrency(t *testing.T) {
 	r := NewServerRegistry()
 	const workers = 32

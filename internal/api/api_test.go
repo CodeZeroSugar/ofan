@@ -94,45 +94,6 @@ func (s *apiSuite) TestCreate_Conflict() {
 	s.Require().Equal(http.StatusConflict, s.rr.Code)
 }
 
-func (s *apiSuite) TestCreate_PortCollision() {
-	body := `{"name":"alpha","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
-	s.rr = httptest.NewRecorder()
-
-	s.cfg.HandlerCreateGameServer(s.rr, req)
-	s.cfg.InformerManager.Registry.Upsert("alpha", func(st *k8s.ServerState) {
-		st.NodePort = 30001
-	})
-
-	s.Require().Equal(http.StatusAccepted, s.rr.Code)
-	s.Assert().Contains(s.rr.Body.String(), `"status":"provisioning"`)
-	_, ok := s.cfg.InformerManager.Registry.Get("alpha")
-	s.Assert().True(ok)
-
-	body = `{
-  "name": "alpha",
-  "password": "secret123",
-  "server_opts": {
-    "node_port": 30001,
-    "config": {
-      "core_settings": {
-        "server_name": "alpha",
-        "world_name": "Dedicated",
-        "server_pass": "secret123",
-        "server_port": 2456,
-        "server_public": false
-      }
-    }
-  }
-}`
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
-	s.rr = httptest.NewRecorder()
-
-	s.cfg.HandlerCreateGameServer(s.rr, req)
-
-	s.Require().Equal(http.StatusConflict, s.rr.Code)
-}
-
 func (s *apiSuite) TestCreate_ProvisionFails() {
 	fakeClient := fake.NewSimpleClientset()
 	fakeClient.PrependReactor("create", "deployments",

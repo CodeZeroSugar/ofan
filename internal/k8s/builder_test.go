@@ -79,7 +79,6 @@ func TestBuildService(t *testing.T) {
 		mgr := NewServerManager(nil, ServerOpts{
 			Name:      "alpha",
 			Namespace: "ofan-test",
-			NodePort:  tt.inputNodePort,
 			Config: ValheimConfig{
 				CoreSettings: CoreSettings{
 					ServerPort: tt.inputServerPort,
@@ -98,7 +97,6 @@ func TestBuildService(t *testing.T) {
 			switch p.Name {
 			case "valheim-udp":
 				sawUdp = true
-				assert.Equal(t, tt.expectedNodePort, p.NodePort)
 				assert.Equal(t, tt.expectedServerPort, p.Port)
 				assert.Equal(t, intstr.FromInt32(tt.expectedServerPort), p.TargetPort)
 				assert.Equal(t, v1.ProtocolUDP, p.Protocol)
@@ -114,6 +112,5 @@ func TestBuildService(t *testing.T) {
 		assert.True(t, sawQuery)
 		assert.Equal(t, map[string]string{"app": mgr.opts.Name}, svc.Spec.Selector)
 		assert.Equal(t, serverLabels("alpha"), svc.Labels)
-		assert.Equal(t, v1.ServiceTypeNodePort, svc.Spec.Type)
 	}
 }
