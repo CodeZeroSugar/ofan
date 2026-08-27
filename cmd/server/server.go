@@ -16,9 +16,10 @@ type server struct {
 	staticFs   fs.FS
 	apiCfg     *api.ApiConfig
 	cancel     context.CancelFunc
+	cfg        *Config
 }
 
-func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*server, error) {
+func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.CancelFunc) (*server, error) {
 	staticFS, err := web.GetStaticFS()
 	if err != nil {
 		return nil, err
@@ -35,6 +36,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 		httpServer: srv,
 		staticFs:   staticFS,
 		apiCfg:     apiCfg,
+		cfg:        cfg,
 		cancel:     cancel,
 	}
 
@@ -54,6 +56,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cancel context.CancelFunc) (*
 	// System command handlers, root protected
 	rootMux := http.NewServeMux()
 	rootMux.HandleFunc("POST /api/v1/system/shutdown", s.handlerShutdown)
+	rootMux.HandleFunc("POST /api/v1/system/reset", s.handlerResetDatabase)
 	apiMux.Handle("/api/v1/system/", auth.RequireRoot(rootMux))
 
 	// Admin role protected

@@ -62,7 +62,7 @@ func main() {
 		Poke:            ctrl.Poke,
 	}
 
-	srv, err := newServer(cfg.Port, apiCfg, cancel)
+	srv, err := newServer(cfg.Port, apiCfg, &cfg, cancel)
 	if err != nil {
 		log.Fatalf("failed to initialize server: %v", err)
 	}

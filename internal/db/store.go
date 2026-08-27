@@ -72,7 +72,7 @@ func (s *Store) migrate(ctx context.Context, adminUser, adminPassHash string) er
 		return fmt.Errorf("failed to check if users table is empty: %w", err)
 	}
 	if isEmpty {
-		if err := s.bootstrapAdmin(ctx, adminUser, adminPassHash); err != nil {
+		if err := s.BootstrapAdmin(ctx, adminUser, adminPassHash); err != nil {
 			return fmt.Errorf("failed to bootstrap admin: %w", err)
 		}
 	}
@@ -88,7 +88,7 @@ func (s *Store) usersEmpty(ctx context.Context) (bool, error) {
 	return count == 0, nil
 }
 
-func (s *Store) bootstrapAdmin(ctx context.Context, adminUser, adminPassHash string) error {
+func (s *Store) BootstrapAdmin(ctx context.Context, adminUser, adminPassHash string) error {
 	_, err := s.db.ExecContext(ctx, `
 			INSERT INTO users(
 				username,
@@ -107,6 +107,22 @@ func (s *Store) bootstrapAdmin(ctx context.Context, adminUser, adminPassHash str
 		`, adminUser, adminPassHash)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap admin to database: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ResetDatabase(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM servers
+		;`)
+	if err != nil {
+		return fmt.Errorf("servers table reset failed: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `
+		DELETE FROM users
+		;`)
+	if err != nil {
+		return fmt.Errorf("users table reset failed: %w", err)
 	}
 	return nil
 }
