@@ -54,10 +54,17 @@ func (m *ServerManager) CreateAll(ctx context.Context) error {
 		return fmt.Errorf("failed to create config map: %w", err)
 	}
 
-	service := m.BuildService()
-	_, err = m.client.CoreV1().Services(ns).Create(ctx, service, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create service: %w", err)
+	_, err = m.client.CoreV1().Services(ns).Get(ctx, m.opts.Name+"-service", metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to check service existence: %w", err)
+	}
+
+	if err != nil {
+		service := m.BuildService()
+		_, err = m.client.CoreV1().Services(ns).Create(ctx, service, metav1.CreateOptions{})
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create service: %w", err)
+		}
 	}
 
 	deployment := m.BuildDeployment()

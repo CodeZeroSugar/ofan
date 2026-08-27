@@ -74,7 +74,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	// Public handlers
 	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))
 	mux.HandleFunc("POST /api/v1/auth/login", s.apiCfg.HandlerLogin)
-	mux.HandleFunc("GET /", s.handlerIndex)
+	mux.HandleFunc("GET /index", s.handlerIndex)
 	mux.HandleFunc("GET /healthz", s.handlerReadiness)
 
 	return s, nil

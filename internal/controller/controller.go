@@ -92,10 +92,6 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 }
 
 func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error {
-	if row.ConsecutiveFailures >= 5 {
-		return nil
-	}
-
 	var valConfig k8s.ValheimConfig
 	if err := json.Unmarshal([]byte(row.ConfigJSON), &valConfig); err != nil {
 		return fmt.Errorf("attempted to unmarshal corrupt config for server '%s': %w", row.Name, err)
@@ -110,10 +106,14 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 	if srvState != nil {
 		opts.NodePort = srvState.NodePort
 	}
+	opts.Namespace = c.namespace
 	mgr := k8s.NewServerManager(c.clientset, opts)
 
 	switch row.DesiredState {
 	case "running":
+		if row.ConsecutiveFailures >= 5 {
+			return nil
+		}
 		if err := mgr.CreateAll(ctx); err != nil {
 			return err
 		}
@@ -122,6 +122,9 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 		}
 		return c.store.ResetFailures(ctx, row.Name)
 	case "stopped":
+		if row.ConsecutiveFailures >= 5 {
+			return nil
+		}
 		if err := mgr.CreateAll(ctx); err != nil {
 			return err
 		}
