@@ -15,3 +15,7 @@ type DeleteServerResponse struct {
 	Status        string `json:"status"`
 	StoragePurged bool   `json:"storage_purged"`
 }
+
+type messageJson struct {
+	Message string `json:"message"`
+}

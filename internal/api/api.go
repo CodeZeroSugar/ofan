@@ -13,6 +13,8 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -340,4 +342,49 @@ func (c *ApiConfig) HandlerStopGameServer(w http.ResponseWriter, r *http.Request
 	respondWithJson(w, http.StatusOK, struct {
 		Message string `json:"message"`
 	}{Message: fmt.Sprintf("server '%s' successfully stopped", srvName)})
+}
+
+func (c *ApiConfig) HandlerDeletePVC(w http.ResponseWriter, r *http.Request) {
+	srvName := r.PathValue("server_name")
+	if srvName == "" {
+		http.Error(w, "server name is required", http.StatusBadRequest)
+		return
+	}
+	rec, err := c.Store.GetServer(r.Context(), srvName)
+	if err != nil && !errors.Is(err, db.ErrServerNotFound) {
+		log.Printf("failed to check if server '%s' exists before trying to delete PVC: %v", srvName, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+	if rec != nil {
+		http.Error(w, "use delete with purge_storage=true", http.StatusConflict)
+		return
+
+	}
+
+	type parameters struct {
+		Confirm bool `json:"confirm"`
+	}
+	var params parameters
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, "invalid json payload", http.StatusBadRequest)
+		return
+	}
+
+	if !params.Confirm {
+		http.Error(w, "missing required confirmation", http.StatusBadRequest)
+		return
+	}
+
+	if err = c.Clientset.CoreV1().PersistentVolumeClaims(c.Namespace).Delete(r.Context(), srvName+"-pvc", metav1.DeleteOptions{}); err != nil {
+		if apierrors.IsNotFound(err) {
+			http.Error(w, fmt.Sprintf("no PVC found for server '%s'", srvName), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to delete PVC for server '%s': %v", srvName, err)
+		http.Error(w, "something went wrong, PVC not deleted", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, messageJson{Message: fmt.Sprintf("PVC for server '%s' successfully deleted", srvName)})
 }
