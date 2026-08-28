@@ -7,8 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"slices"
 	"strings"
+	"time"
 
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/internal/db"
@@ -25,6 +25,15 @@ type ApiConfig struct {
 	Store           *db.Store
 	Auth            *auth.Manager
 	Poke            func()
+}
+
+type ServerView struct {
+	*k8s.ServerState
+	DesiredState        string        `json:"desired_state"`
+	Health              string        `json:"health"`
+	ConsecutiveFailures int           `json:"consecutive_failures"`
+	Uptime              time.Duration `json:"uptime"`
+	Owner               string        `json:"owner,omitempty"`
 }
 
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
@@ -172,29 +181,50 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 
 	stateList := c.InformerManager.Registry.List()
 	if len(stateList) == 0 {
-		respondWithJson(w, http.StatusOK, stateList)
+		respondWithJson(w, http.StatusOK, make(map[string]ServerView))
 		return
 	}
 
-	if userCtx.IsRoot || userCtx.IsAdmin {
-		respondWithJson(w, http.StatusOK, stateList)
-		return
-	}
-
-	srvNames, err := c.Store.ListServersByOwner(r.Context(), userCtx.Username)
+	srvRecords, err := c.Store.ListServerConfigs(r.Context())
 	if err != nil {
-		log.Printf("failed to get servers owned by '%s': %v", userCtx.Username, err)
+		log.Printf("failed to get server configs for metrics: %v", err)
 		http.Error(w, "something went wrong", http.StatusInternalServerError)
 		return
 	}
 
-	filtered := make([]*k8s.ServerState, 0)
+	rowMap := make(map[string]db.ServerRecord, len(srvRecords))
+	for _, r := range srvRecords {
+		rowMap[r.Name] = r
+	}
+
+	viewMap := make(map[string]ServerView)
 	for _, s := range stateList {
-		if slices.Contains(srvNames, s.Name) {
-			filtered = append(filtered, s)
+		rec := rowMap[s.Name]
+		created := rec.CreatedAt
+		if created.IsZero() {
+			created = s.CreatedAt
+		}
+		viewMap[s.Name] = ServerView{
+			ServerState:         s,
+			DesiredState:        rec.DesiredState,
+			Health:              deriveHealth(s.Status, rec.DesiredState, rec.ConsecutiveFailures),
+			ConsecutiveFailures: rec.ConsecutiveFailures,
+			Uptime:              time.Since(created),
+			Owner:               rec.Owner,
 		}
 	}
-	respondWithJson(w, http.StatusOK, filtered)
+
+	if userCtx.IsRoot || userCtx.IsAdmin {
+		respondWithJson(w, http.StatusOK, viewMap)
+		return
+	}
+
+	for n, s := range viewMap {
+		if s.Owner != userCtx.Username {
+			delete(viewMap, n)
+		}
+	}
+	respondWithJson(w, http.StatusOK, viewMap)
 }
 
 func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request) {
