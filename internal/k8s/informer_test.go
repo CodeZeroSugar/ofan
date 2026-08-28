@@ -67,7 +67,7 @@ func TestUpsertDeployment(t *testing.T) {
 				Replicas:      1,
 				ReadyReplicas: 1,
 			},
-			ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ofan-test"},
+			ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ofan-test", Labels: serverLabels("alpha")},
 		},
 	}
 	update := struct {
@@ -81,7 +81,7 @@ func TestUpsertDeployment(t *testing.T) {
 				Replicas:      0,
 				ReadyReplicas: 0,
 			},
-			ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ofan-test"},
+			ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ofan-test", Labels: serverLabels("alpha")},
 		},
 	}
 

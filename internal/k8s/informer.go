@@ -58,6 +58,9 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 }
 
 func (m *InformerManager) upsertDeployment(obj *appsv1.Deployment) {
+	if obj.Labels[LabelManagedBy] != ManagedByOfan {
+		return
+	}
 	m.Registry.Upsert(obj.Name, func(s *ServerState) {
 		s.Status = deploymentStatus(obj)
 		if obj.Spec.Replicas != nil {
