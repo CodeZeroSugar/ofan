@@ -277,3 +277,14 @@ func (s *Store) UpdateState(ctx context.Context, name, desiredState string) erro
 	}
 	return nil
 }
+
+func (s *Store) InsertOrphanTombstone(ctx context.Context, name, configJSON string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO servers(name, owner, config_json, desired_state, purge_storage)
+		VALUES(?, ?, ?, 'deleting', 0)
+		;`, name, s.rootUser, configJSON)
+	if err != nil {
+		return fmt.Errorf("failed to insert orphan tombstone for '%s': %w", name, err)
+	}
+	return nil
+}

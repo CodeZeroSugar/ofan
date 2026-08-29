@@ -160,7 +160,15 @@ func (c *Controller) driftPass(ctx context.Context, rowNames map[string]struct{}
 		}
 		c.driftCounts[s.Name]++
 		if c.driftCounts[s.Name] >= 3 {
-			c.store.MarkDeleting(ctx, s.Name, false)
+			cfg, err := json.Marshal(k8s.ValheimConfig{CoreSettings: k8s.CoreSettings{ServerName: s.Name}})
+			if err != nil {
+				log.Printf("failed to marshal orphan config for '%s': %v", s.Name, err)
+				continue
+			}
+			if err := c.store.InsertOrphanTombstone(ctx, s.Name, string(cfg)); err != nil {
+				log.Printf("failed to tombstone orgphan '%s': %v", s.Name, err)
+				continue
+			}
 			delete(c.driftCounts, s.Name)
 			log.Printf("server '%s' marked for deletion!", s.Name)
 		}

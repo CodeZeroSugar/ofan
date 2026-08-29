@@ -9,7 +9,8 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db       *sql.DB
+	rootUser string
 }
 
 func NewStore(ctx context.Context, dbPath, adminUser, adminPassHash string) (*Store, error) {
@@ -19,7 +20,7 @@ func NewStore(ctx context.Context, dbPath, adminUser, adminPassHash string) (*St
 	}
 	db.SetMaxOpenConns(1)
 
-	store := &Store{db: db}
+	store := &Store{db: db, rootUser: adminUser}
 	if err := store.migrate(ctx, adminUser, adminPassHash); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to run migration: %w", err)
