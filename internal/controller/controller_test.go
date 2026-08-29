@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
@@ -507,4 +508,43 @@ func TestOrphan_TornDownAfterThreePasses(t *testing.T) {
 	assert.False(t, deploymentExists(client, "alpha"))
 	_, err = s.GetServer(ctx, "alpha")
 	require.ErrorIs(t, err, db.ErrServerNotFound)
+}
+
+func TestRowPresence_ClearsDriftCount(t *testing.T) {
+	ctx := context.Background()
+	s, _, reg, c := newTestController(t)
+
+	seedRegistry(t, reg, "alpha", 0)
+
+	err := c.Reconcile(ctx)
+	require.NoError(t, err)
+
+	i, exists := c.driftCounts["alpha"]
+	assert.True(t, exists)
+	assert.True(t, i > 0)
+
+	seedRow(t, s, "alpha", "running", false)
+
+	err = c.Reconcile(ctx)
+	require.NoError(t, err)
+
+	_, exists = c.driftCounts["alpha"]
+	assert.False(t, exists)
+}
+
+func TestPoke_NonBlocking(t *testing.T) {
+	_, _, _, c := newTestController(t)
+
+	c.Poke()
+	done := make(chan struct{})
+
+	go func() {
+		c.Poke()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Poke blocked on a full trigger channel")
+	}
 }
