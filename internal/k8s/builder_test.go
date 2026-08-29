@@ -48,18 +48,14 @@ func TestBuildDeployment(t *testing.T) {
 func TestBuildService(t *testing.T) {
 	tests := []struct {
 		name                string
-		inputNodePort       int32
 		inputServerPort     int32
-		expectedNodePort    int32
 		expectedQueryPort   int32
 		expectedServerPort  int32
 		expectedServerQuery int32
 	}{
 		{
 			name:                "node port is 0",
-			inputNodePort:       0,
 			inputServerPort:     2456,
-			expectedNodePort:    0,
 			expectedQueryPort:   0,
 			expectedServerPort:  2456,
 			expectedServerQuery: 2457,
@@ -93,7 +89,6 @@ func TestBuildService(t *testing.T) {
 				assert.Equal(t, v1.ProtocolUDP, p.Protocol)
 			case "valheim-query":
 				sawQuery = true
-				assert.Equal(t, tt.expectedQueryPort, p.NodePort)
 				assert.Equal(t, tt.expectedServerQuery, p.Port)
 				assert.Equal(t, intstr.FromInt32(tt.expectedServerQuery), p.TargetPort)
 				assert.Equal(t, v1.ProtocolUDP, p.Protocol)

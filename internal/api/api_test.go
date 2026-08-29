@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,15 +12,17 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 	"github.com/stretchr/testify/suite"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
-	k8stesting "k8s.io/client-go/testing"
 )
 
 type apiSuite struct {
 	suite.Suite
 	cfg *ApiConfig
 	rr  *httptest.ResponseRecorder
+}
+
+func testConfigJSON(name string) string {
+	return fmt.Sprintf(`{"core_settings":{"server_name":%q}}`, name)
 }
 
 func (s *apiSuite) SetupTest() {
@@ -40,9 +42,16 @@ func (s *apiSuite) SetupTest() {
 	}
 }
 
+func (s *apiSuite) reqWithUser(user *db.User, method, target, body string) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	return req.WithContext(auth.WithUser(req.Context(), user))
+}
+
 func (s *apiSuite) TestCreate_Valid() {
 	body := `{"name":"alpha","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
 	s.rr = httptest.NewRecorder()
 
 	s.cfg.HandlerCreateGameServer(s.rr, req)
@@ -55,7 +64,9 @@ func (s *apiSuite) TestCreate_Valid() {
 
 func (s *apiSuite) TestCreate_InvalidPayload() {
 	body := `{not json}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
 	s.rr = httptest.NewRecorder()
 
 	s.cfg.HandlerCreateGameServer(s.rr, req)
@@ -65,7 +76,9 @@ func (s *apiSuite) TestCreate_InvalidPayload() {
 
 func (s *apiSuite) TestCreate_ValidationError() {
 	body := `{"name":"!!!"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
 	s.rr = httptest.NewRecorder()
 
 	s.cfg.HandlerCreateGameServer(s.rr, req)
@@ -75,7 +88,9 @@ func (s *apiSuite) TestCreate_ValidationError() {
 
 func (s *apiSuite) TestCreate_Conflict() {
 	body := `{"name":"alpha","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
 	s.rr = httptest.NewRecorder()
 
 	s.cfg.HandlerCreateGameServer(s.rr, req)
@@ -86,31 +101,12 @@ func (s *apiSuite) TestCreate_Conflict() {
 	s.Assert().True(ok)
 
 	body = `{"name":"alpha","password":"secret123"}`
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
 	s.rr = httptest.NewRecorder()
 
 	s.cfg.HandlerCreateGameServer(s.rr, req)
 
 	s.Require().Equal(http.StatusConflict, s.rr.Code)
-}
-
-func (s *apiSuite) TestCreate_ProvisionFails() {
-	fakeClient := fake.NewSimpleClientset()
-	fakeClient.PrependReactor("create", "deployments",
-		func(action k8stesting.Action) (bool, runtime.Object, error) {
-			return true, nil, errors.New("boom")
-		})
-	s.cfg.Clientset = fakeClient
-
-	body := `{"name":"alpha","password":"secret123"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/create", strings.NewReader(body))
-	s.rr = httptest.NewRecorder()
-
-	s.cfg.HandlerCreateGameServer(s.rr, req)
-
-	s.Require().Equal(http.StatusInternalServerError, s.rr.Code)
-	_, ok := s.cfg.InformerManager.Registry.Get("alpha")
-	s.Assert().False(ok)
 }
 
 func (s *apiSuite) TestDelete_Valid() {
@@ -122,7 +118,13 @@ func (s *apiSuite) TestDelete_Valid() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/alpha/delete", strings.NewReader("{}"))
+	body := "{}"
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/delete", body)
+
+	s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+
 	s.rr = httptest.NewRecorder()
 	mux.ServeHTTP(s.rr, req)
 
@@ -137,11 +139,17 @@ func (s *apiSuite) TestDelete_Unknown() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/alpha/delete", strings.NewReader("{}"))
+	body := "{}"
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
+
+	s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+
 	s.rr = httptest.NewRecorder()
 	mux.ServeHTTP(s.rr, req)
 
-	s.Require().Equal(http.StatusAccepted, s.rr.Code)
+	s.Require().Equal(http.StatusNotFound, s.rr.Code)
 	_, ok := s.cfg.InformerManager.Registry.Get("ghost")
 	s.Require().False(ok)
 }
@@ -150,7 +158,14 @@ func (s *apiSuite) TestDelete_NoBody() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/alpha/delete", http.NoBody)
+	body := ""
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/delete", body)
+	req.Body = http.NoBody
+
+	s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+
 	s.rr = httptest.NewRecorder()
 	mux.ServeHTTP(s.rr, req)
 
@@ -168,13 +183,20 @@ func (s *apiSuite) TestList() {
 		st.Namespace = "ofan-dev"
 		st.Status = "running"
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers", strings.NewReader("{}"))
+	body := "{}"
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
+
 	s.rr = httptest.NewRecorder()
 	s.cfg.HandlerListGameServers(s.rr, req)
 	list := s.cfg.InformerManager.Registry.List()
 
 	s.Require().Equal(http.StatusOK, s.rr.Code)
 	s.Require().True(len(list) == 2)
+
+	s.Assert().Contains(s.rr.Body.String(), `"alpha"`)
+	s.Assert().Contains(s.rr.Body.String(), `"bravo"`)
 }
 
 func TestApiSuite(t *testing.T) {

@@ -111,3 +111,7 @@ func UserFromContext(ctx context.Context) *db.User {
 	u, _ := ctx.Value(userKey).(*db.User)
 	return u
 }
+
+func WithUser(ctx context.Context, user *db.User) context.Context {
+	return context.WithValue(ctx, userKey, user)
+}

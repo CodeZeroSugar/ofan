@@ -2,17 +2,22 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func testConfigJSON(name string) string {
+	return fmt.Sprintf(`{"core_settings":{"server_name":%q}}`, name)
+}
+
 func TestCreateServer_GetOwner(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	err := store.CreateServer(ctx, "alpha", "admin")
+	err := store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	require.NoError(t, err)
 
 	owner, err := store.GetServerOwner(ctx, "alpha")
@@ -24,10 +29,10 @@ func TestCreateServer_Duplicate(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	err := store.CreateServer(ctx, "alpha", "admin")
+	err := store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	require.NoError(t, err)
 
-	err = store.CreateServer(ctx, "alpha", "admin")
+	err = store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	assert.ErrorIs(t, err, ErrServerExists)
 }
 
@@ -35,7 +40,7 @@ func TestCreateServer_BadOwner(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	err := store.CreateServer(ctx, "alpha", "ghost")
+	err := store.CreateServer(ctx, "alpha", "ghost", testConfigJSON("alpha"))
 	require.Error(t, err)
 }
 
@@ -43,7 +48,7 @@ func TestDeleteServer(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	err := store.CreateServer(ctx, "alpha", "admin")
+	err := store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	require.NoError(t, err)
 
 	err = store.DeleteServer(ctx, "alpha")
@@ -80,12 +85,12 @@ func TestListServersByOwner(t *testing.T) {
 	err = store.CreateUser(ctx, "alice", "hash123", false)
 	require.NoError(t, err)
 
-	err = store.CreateServer(ctx, "alpha", "bob")
+	err = store.CreateServer(ctx, "alpha", "bob", testConfigJSON("alpha"))
 	require.NoError(t, err)
-	err = store.CreateServer(ctx, "bravo", "bob")
+	err = store.CreateServer(ctx, "bravo", "bob", testConfigJSON("bravo"))
 	require.NoError(t, err)
 
-	err = store.CreateServer(ctx, "charlie", "alice")
+	err = store.CreateServer(ctx, "charlie", "alice", testConfigJSON("charlie"))
 	require.NoError(t, err)
 
 	bobServers, err := store.ListServersByOwner(ctx, "bob")
@@ -108,12 +113,12 @@ func TestTransferServer(t *testing.T) {
 	err = store.CreateUser(ctx, "alice", "hash123", false)
 	require.NoError(t, err)
 
-	err = store.CreateServer(ctx, "alpha", "bob")
+	err = store.CreateServer(ctx, "alpha", "bob", testConfigJSON("alpha"))
 	require.NoError(t, err)
-	err = store.CreateServer(ctx, "bravo", "bob")
+	err = store.CreateServer(ctx, "bravo", "bob", testConfigJSON("bravo"))
 	require.NoError(t, err)
 
-	err = store.CreateServer(ctx, "charlie", "alice")
+	err = store.CreateServer(ctx, "charlie", "alice", testConfigJSON("charlie"))
 	require.NoError(t, err)
 
 	err = store.TransferServer(ctx, "bravo", "alice")
@@ -127,7 +132,7 @@ func TestTransferServer_BadOwner(t *testing.T) {
 	store := newTestStore(t)
 	ctx := context.Background()
 
-	err := store.CreateServer(ctx, "alpha", "admin")
+	err := store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	require.NoError(t, err)
 
 	err = store.TransferServer(ctx, "alpha", "ghost")
