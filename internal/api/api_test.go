@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -581,6 +582,337 @@ func (s *apiSuite) TestLogout() {
 	mux.ServeHTTP(s.rr, req)
 
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
+func (s *apiSuite) TestCreateUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/create", s.cfg.HandlerCreateUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{
+	"username":"bob",
+	"password":"p",
+	"is_admin":false
+	}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/create", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusCreated, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+
+	s.Assert().Equal("bob", user.Username)
+}
+
+func (s *apiSuite) TestCreateUser_Blank() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/create", s.cfg.HandlerCreateUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{
+	"username":"",
+	"password":""
+	}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/create", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusBadRequest, s.rr.Code)
+}
+
+func (s *apiSuite) TestCreateUser_Exists() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/create", s.cfg.HandlerCreateUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{
+	"username":"bob",
+	"password":"p",
+	"is_admin":false
+	}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/create", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusCreated, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+
+	s.Assert().Equal("bob", user.Username)
+
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/create", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusConflict, s.rr.Code)
+}
+
+func (s *apiSuite) TestDeleteUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/delete/{username}", s.cfg.HandlerDeleteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/delete/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
+func (s *apiSuite) TestDeleteUser_Self() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/delete/{username}", s.cfg.HandlerDeleteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/delete/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func (s *apiSuite) TestDeleteUser_OwnsServers() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/delete/{username}", s.cfg.HandlerDeleteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "bob", testConfigJSON("alpha")))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/delete/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusConflict, s.rr.Code)
+}
+
+func (s *apiSuite) TestDeleteUser_NotFound() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/delete/{username}", s.cfg.HandlerDeleteUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/delete/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+}
+
+func (s *apiSuite) TestSuspendUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/suspend/{username}", s.cfg.HandlerSuspendUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/suspend/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().True(user.IsSuspended)
+}
+
+func (s *apiSuite) TestSuspendUser_Self() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/suspend/{username}", s.cfg.HandlerSuspendUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/suspend/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func (s *apiSuite) TestUnsuspendUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/unsuspend/{username}", s.cfg.HandlerUnsuspendUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+	s.Require().NoError(s.cfg.Store.SuspendUser(ctx, "bob"))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/unsuspend/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().False(user.IsSuspended)
+}
+
+func (s *apiSuite) TestPromoteUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/promote/{username}", s.cfg.HandlerPromoteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/promote/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().True(user.IsAdmin)
+}
+
+func (s *apiSuite) TestDemoteUser_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/demote/{username}", s.cfg.HandlerDemoteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/demote/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().False(user.IsAdmin)
+}
+
+func (s *apiSuite) TestPromoteDemote_NotFound() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/promote/{username}", s.cfg.HandlerPromoteUser)
+	mux.HandleFunc("POST /api/v1/admin/users/demote/{username}", s.cfg.HandlerDemoteUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/promote/ghost", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/demote/ghost", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+}
+
+func (s *apiSuite) TestResetPassword_Valid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/reset_password", s.cfg.HandlerResetPassword)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{"username":"bob","temp_password":"t"}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/reset_password", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().True(user.MustChangePassword)
+}
+
+func (s *apiSuite) TestResetPassword_Blank() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/reset_password", s.cfg.HandlerResetPassword)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{"username":"","temp_password":""}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/reset_password", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusBadRequest, s.rr.Code)
+}
+
+func (s *apiSuite) TestListUsers() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/admin/users", s.cfg.HandlerListUsers)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodGet, "/api/v1/admin/users", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	var users []db.User
+	s.Require().NoError(json.NewDecoder(s.rr.Body).Decode(&users))
+
+	var names []string
+	for _, u := range users {
+		names = append(names, u.Username)
+	}
+
+	s.Assert().Contains(names, "admin")
+	s.Assert().Contains(names, "bob")
 }
 
 func TestApiSuite(t *testing.T) {
