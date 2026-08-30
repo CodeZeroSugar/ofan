@@ -322,7 +322,7 @@ func (s *apiSuite) TestStop_Conflict() {
 
 func (s *apiSuite) TestTransfer_Valid() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerStopGameServer)
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerTransferServer)
 
 	ctx := context.Background()
 	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
@@ -331,11 +331,8 @@ func (s *apiSuite) TestTransfer_Valid() {
 	err = s.cfg.Store.CreateUser(ctx, "bob", "testhash", false)
 	s.Require().NoError(err)
 
-	err = s.cfg.Store.TransferServer(ctx, "alpha", "bob")
-	s.Require().NoError(err)
-
 	body := `
-	{"new_owber":"bob"}
+	{"new_owner":"bob"}
 	`
 	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
 	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
@@ -346,6 +343,90 @@ func (s *apiSuite) TestTransfer_Valid() {
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
 	owner, err := s.cfg.Store.GetServerOwner(ctx, "alpha")
 	s.Assert().Equal("bob", owner)
+}
+
+func (s *apiSuite) TestTransfer_BlankOwner() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerTransferServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	body := `
+	{"new_owner":""}
+	`
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusBadRequest, s.rr.Code)
+}
+
+func (s *apiSuite) TestTransfer_ServerMissing() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerTransferServer)
+
+	ctx := context.Background()
+
+	err := s.cfg.Store.CreateUser(ctx, "bob", "testhash", false)
+	s.Require().NoError(err)
+
+	body := `
+	{"new_owner":"bob"}
+	`
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+}
+
+func (s *apiSuite) TestTransfer_TargetMissing() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerTransferServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	body := `
+	{"new_owner":"ghost"}
+	`
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+}
+
+func (s *apiSuite) TestTransfer_Forbidden() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerTransferServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	err = s.cfg.Store.CreateUser(ctx, "bob", "testhash", false)
+	s.Require().NoError(err)
+
+	body := `
+	{"new_owner":"bob"}
+	`
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
 }
 
 func TestApiSuite(t *testing.T) {
