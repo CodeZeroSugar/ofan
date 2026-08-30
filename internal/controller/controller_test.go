@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 const testNS = "ofan-test"
@@ -547,4 +550,37 @@ func TestPoke_NonBlocking(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Poke blocked on a full trigger channel")
 	}
+}
+
+func TestCreateAllError(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+	client.PrependReactor("create", "deployments", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, errors.New("faked api server error")
+	})
+
+	err := c.Reconcile(ctx)
+	require.NoError(t, err)
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	assert.Equal(t, 1, srv.ConsecutiveFailures)
+}
+
+func TestEnsureReplicasError_IncrementsFailure(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 0)
+	client.PrependReactor("get", "deployments", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, errors.New("faked api server error")
+	})
+
+	require.NoError(t, c.Reconcile(ctx))
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	assert.Equal(t, 1, srv.ConsecutiveFailures)
 }
