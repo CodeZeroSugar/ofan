@@ -138,3 +138,118 @@ func TestTransferServer_BadOwner(t *testing.T) {
 	err = store.TransferServer(ctx, "alpha", "ghost")
 	assert.Error(t, err)
 }
+
+func TestGetServer_RoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+
+	assert.Equal(t, "admin", srv.Owner)
+	assert.Equal(t, "running", srv.DesiredState)
+	assert.Equal(t, 0, srv.ConsecutiveFailures)
+	assert.False(t, srv.PurgeStorage)
+}
+
+func TestGetServer_NotFound(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	_, err := s.GetServer(ctx, "alpha")
+	assert.ErrorIs(t, err, ErrServerNotFound)
+}
+
+func TestMarkDeleting(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	require.NoError(t, s.MarkDeleting(ctx, "alpha", true))
+
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+
+	assert.Equal(t, "deleting", srv.DesiredState)
+	assert.True(t, srv.PurgeStorage)
+}
+
+func TestMarkDeleting_NotFound(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.ErrorIs(t, s.MarkDeleting(ctx, "alpha", true), ErrServerNotFound)
+}
+
+func TestUpdateState_RoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	require.NoError(t, s.UpdateState(ctx, "alpha", "stopped"))
+
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+
+	assert.Equal(t, "admin", srv.Owner)
+	assert.Equal(t, "stopped", srv.DesiredState)
+	assert.Equal(t, 0, srv.ConsecutiveFailures)
+	assert.False(t, srv.PurgeStorage)
+}
+
+func TestListServerConfigs(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	require.NoError(t, s.CreateServer(ctx, "bravo", "admin", testConfigJSON("alpha")))
+
+	cfgs, err := s.ListServerConfigs(ctx)
+	require.NoError(t, err)
+
+	assert.True(t, len(cfgs) == 2)
+}
+
+func TestIncrementFailure(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+
+	srv, _ := s.GetServer(ctx, "alpha")
+	assert.Equal(t, 2, srv.ConsecutiveFailures)
+}
+
+func TestResetFailures(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+
+	srv, _ := s.GetServer(ctx, "alpha")
+	assert.Equal(t, 2, srv.ConsecutiveFailures)
+
+	require.NoError(t, s.ResetFailures(ctx, "alpha"))
+
+	srv, _ = s.GetServer(ctx, "alpha")
+	assert.Equal(t, 0, srv.ConsecutiveFailures)
+}
+
+func TestInsertOphanTombstone(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, s.InsertOrphanTombstone(ctx, "alpha", testConfigJSON("alpha")))
+
+	tomb, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	assert.Equal(t, "deleting", tomb.DesiredState)
+	assert.Equal(t, "admin", tomb.Owner)
+	assert.False(t, tomb.PurgeStorage)
+}
