@@ -39,6 +39,7 @@ func (s *apiSuite) SetupTest() {
 		Namespace:       "ofan-dev",
 		Store:           store,
 		Auth:            auth.NewManager(store, []byte("testsecret")),
+		Poke:            func() {},
 	}
 }
 
@@ -197,6 +198,154 @@ func (s *apiSuite) TestList() {
 
 	s.Assert().Contains(s.rr.Body.String(), `"alpha"`)
 	s.Assert().Contains(s.rr.Body.String(), `"bravo"`)
+}
+
+func (s *apiSuite) TestStart_Valid() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/start", s.cfg.HandlerStartGameServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	err = s.cfg.Store.UpdateState(ctx, "alpha", "stopped")
+	s.Require().NoError(err)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/start", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	srv, err := s.cfg.Store.GetServer(ctx, "alpha")
+	s.Require().NoError(err)
+	s.Assert().True(srv.DesiredState == "running")
+}
+
+func (s *apiSuite) TestStart_Conflict() {
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/start", s.cfg.HandlerStartGameServer)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/start", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusConflict, s.rr.Code)
+}
+
+func (s *apiSuite) TestStart_NotFound() {
+	ctx := context.Background()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/start", s.cfg.HandlerStartGameServer)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/ghost/start", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
+}
+
+func (s *apiSuite) TestStart_Forbidden() {
+	ctx := context.Background()
+	err := s.cfg.Store.CreateUser(ctx, "bob", "fakehash", false)
+	s.Require().NoError(err)
+	err = s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+	err = s.cfg.Store.UpdateState(ctx, "alpha", "stopped")
+	s.Require().NoError(err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/start", s.cfg.HandlerStartGameServer)
+
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/servers/alpha/start", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func (s *apiSuite) TestStop_Valid() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.cfg.HandlerStopGameServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/stop", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	srv, err := s.cfg.Store.GetServer(ctx, "alpha")
+	s.Require().NoError(err)
+	s.Assert().True(srv.DesiredState == "stopped")
+}
+
+func (s *apiSuite) TestStop_Conflict() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.cfg.HandlerStopGameServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+	err = s.cfg.Store.UpdateState(ctx, "alpha", "stopped")
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/stop", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusConflict, s.rr.Code)
+
+	srv, err := s.cfg.Store.GetServer(ctx, "alpha")
+	s.Require().NoError(err)
+	s.Assert().True(srv.DesiredState == "stopped")
+}
+
+func (s *apiSuite) TestTransfer_Valid() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/transfer", s.cfg.HandlerStopGameServer)
+
+	ctx := context.Background()
+	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	s.Require().NoError(err)
+
+	err = s.cfg.Store.CreateUser(ctx, "bob", "testhash", false)
+	s.Require().NoError(err)
+
+	err = s.cfg.Store.TransferServer(ctx, "alpha", "bob")
+	s.Require().NoError(err)
+
+	body := `
+	{"new_owber":"bob"}
+	`
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/transfer", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+	owner, err := s.cfg.Store.GetServerOwner(ctx, "alpha")
+	s.Assert().Equal("bob", owner)
 }
 
 func TestApiSuite(t *testing.T) {
