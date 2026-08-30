@@ -12,6 +12,8 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 	"github.com/stretchr/testify/suite"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -427,6 +429,101 @@ func (s *apiSuite) TestTransfer_Forbidden() {
 	mux.ServeHTTP(s.rr, req)
 
 	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func serverLabels(name string) map[string]string {
+	return map[string]string{
+		"app":               name,
+		k8s.LabelManagedBy:  k8s.ManagedByOfan,
+		k8s.LabelServerName: name,
+	}
+}
+
+func (s *apiSuite) TestPurge_Valid() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/system/purge-storage/{server_name}", s.cfg.HandlerDeletePVC)
+
+	ctx := context.Background()
+	_, err := s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Create(ctx, &v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Labels: serverLabels("alpha"), Name: "alpha-pvc"}}, metav1.CreateOptions{})
+	s.Require().NoError(err)
+
+	_, err = s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, "alpha-pvc", metav1.GetOptions{})
+	s.Require().NoError(err)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{"confirm":true}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/system/purge-storage/alpha", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	_, err = s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, "alpha-pvc", metav1.GetOptions{})
+	s.Assert().Error(err)
+}
+
+func (s *apiSuite) TestPurge_NoConfirm() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/system/purge-storage/{server_name}", s.cfg.HandlerDeletePVC)
+
+	ctx := context.Background()
+	_, err := s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Create(ctx, &v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Labels: serverLabels("alpha"), Name: "alpha-pvc"}}, metav1.CreateOptions{})
+	s.Require().NoError(err)
+
+	_, err = s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, "alpha-pvc", metav1.GetOptions{})
+	s.Require().NoError(err)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/system/purge-storage/alpha", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusBadRequest, s.rr.Code)
+}
+
+func (s *apiSuite) TestPurge_ServerExists() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/system/purge-storage/{server_name}", s.cfg.HandlerDeletePVC)
+
+	ctx := context.Background()
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+
+	_, err := s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Create(ctx, &v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Labels: serverLabels("alpha"), Name: "alpha-pvc"}}, metav1.CreateOptions{})
+	s.Require().NoError(err)
+
+	_, err = s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, "alpha-pvc", metav1.GetOptions{})
+	s.Require().NoError(err)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{"confirm":true}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/system/purge-storage/alpha", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusConflict, s.rr.Code)
+
+	_, err = s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Get(ctx, "alpha-pvc", metav1.GetOptions{})
+	s.Assert().NoError(err)
+}
+
+func (s *apiSuite) TestPurge_NoPvc() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/system/purge-storage/{server_name}", s.cfg.HandlerDeletePVC)
+
+	ctx := context.Background()
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{"confirm":true}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/system/purge-storage/alpha", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
 }
 
 func TestApiSuite(t *testing.T) {
