@@ -526,6 +526,63 @@ func (s *apiSuite) TestPurge_NoPvc() {
 	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
 }
 
+func (s *apiSuite) TestChangePasswordValid() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/auth/password", s.cfg.HandlerChangePassword)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "changeme", true))
+
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{"new_password":"pass123"}`
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/auth/password", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().False(user.MustChangePassword)
+}
+
+func (s *apiSuite) TestChangePassword_Blank() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/auth/password", s.cfg.HandlerChangePassword)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "changeme", true))
+
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{"new_password":""}`
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/auth/password", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusBadRequest, s.rr.Code)
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	s.Assert().True(user.MustChangePassword)
+}
+
+func (s *apiSuite) TestLogout() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/auth/logout", s.cfg.HandlerLogout)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "changeme", true))
+
+	body := "{}"
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/auth/logout", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
 func TestApiSuite(t *testing.T) {
 	suite.Run(t, new(apiSuite))
 }
