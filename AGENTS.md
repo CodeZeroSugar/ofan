@@ -175,6 +175,12 @@ user's to perform.
   must wait out the full termination grace (≤150s) before `CreateAll` — a
   shorter wait strands a mid-save pod: poll timeout → registry entry drops →
   zombie skip → never re-provisioned.
+- `stateActions` (controller) takes a `targetReplicas` param — never hardcode a
+  replica literal inside it (`maxReplicas` is a var; a literal breaks if it
+  changes).
+- Tests that exercise the ladder's hard reset must shrink `recreatePollInterval`
+  (controller package var, default 5s) or each case sleeps a real 5s against the
+  fake clientset.
 - `deploymentStatus` treats nil `Spec.Replicas` as 1 (matches k8s) so a
   nil-replicas deployment reports `provisioning`, not `stopped`.
 - Rowless uptime: `IsZero()` fallback to registry `CreatedAt` when the DB row

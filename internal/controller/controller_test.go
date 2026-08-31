@@ -278,56 +278,6 @@ func TestNoRegistryEntry_SkipsRow(t *testing.T) {
 	assertResourcesNotExist(t, client, "alpha")
 }
 
-func TestRunningRow_GateSkipsAt5(t *testing.T) {
-	ctx := context.Background()
-	s, client, reg, c := newTestController(t)
-
-	seedRow(t, s, "alpha", "running", false)
-	for i := 0; i < 5; i++ {
-		err := s.IncrementFailure(ctx, "alpha")
-		require.NoError(t, err)
-	}
-	srv, err := s.GetServer(ctx, "alpha")
-	require.NoError(t, err)
-	assert.Equal(t, 5, srv.ConsecutiveFailures)
-
-	seedRegistry(t, reg, "alpha", 0)
-
-	err = c.Reconcile(ctx)
-	require.NoError(t, err)
-
-	assertResourcesNotExist(t, client, "alpha")
-
-	srv, err = s.GetServer(ctx, "alpha")
-	require.NoError(t, err)
-	assert.Equal(t, 5, srv.ConsecutiveFailures)
-}
-
-func TestStoppedRow_GateSkipsAt5(t *testing.T) {
-	ctx := context.Background()
-	s, client, reg, c := newTestController(t)
-
-	seedRow(t, s, "alpha", "stopped", false)
-	for i := 0; i < 5; i++ {
-		err := s.IncrementFailure(ctx, "alpha")
-		require.NoError(t, err)
-	}
-	srv, err := s.GetServer(ctx, "alpha")
-	require.NoError(t, err)
-	assert.Equal(t, 5, srv.ConsecutiveFailures)
-
-	seedRegistry(t, reg, "alpha", 0)
-
-	err = c.Reconcile(ctx)
-	require.NoError(t, err)
-
-	assertResourcesNotExist(t, client, "alpha")
-
-	srv, err = s.GetServer(ctx, "alpha")
-	require.NoError(t, err)
-	assert.Equal(t, 5, srv.ConsecutiveFailures)
-}
-
 func TestCorruptConfig_IncrementsFailure(t *testing.T) {
 	ctx := context.Background()
 	s, client, reg, c := newTestController(t)
