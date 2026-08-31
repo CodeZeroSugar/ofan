@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var recreatePollInterval = 5 * time.Second
+
 type Controller struct {
 	store       *db.Store
 	clientset   kubernetes.Interface
@@ -97,37 +99,15 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 		return fmt.Errorf("attempted to unmarshal corrupt config for server '%s': %w", row.Name, err)
 	}
 
-	if _, exists := c.registry.Get(row.Name); !exists {
-		return nil
-	}
-
 	opts := k8s.NewServerOpts(valConfig.CoreSettings.ServerName, valConfig.CoreSettings.ServerPass, &valConfig)
 	opts.Namespace = c.namespace
 	mgr := k8s.NewServerManager(c.clientset, opts)
 
 	switch row.DesiredState {
 	case "running":
-		if row.ConsecutiveFailures >= 5 {
-			return nil
-		}
-		if err := mgr.CreateAll(ctx); err != nil {
-			return err
-		}
-		if err := c.ensureReplicas(ctx, row.Name, opts.Replicas); err != nil {
-			return err
-		}
-		return c.store.ResetFailures(ctx, row.Name)
+		return c.stateActions(ctx, mgr, row, opts.Replicas)
 	case "stopped":
-		if row.ConsecutiveFailures >= 5 {
-			return nil
-		}
-		if err := mgr.CreateAll(ctx); err != nil {
-			return err
-		}
-		if err := c.ensureReplicas(ctx, row.Name, 0); err != nil {
-			return err
-		}
-		return c.store.ResetFailures(ctx, row.Name)
+		return c.stateActions(ctx, mgr, row, 0)
 	case "deleting":
 		if err := mgr.DeleteAll(ctx, row.PurgeStorage); err != nil {
 			return err
@@ -135,6 +115,28 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 		return c.store.DeleteServer(ctx, row.Name)
 	}
 	return nil
+}
+
+func (c *Controller) stateActions(ctx context.Context, mgr *k8s.ServerManager, row db.ServerRecord, targetReplicas int32) error {
+	if _, exists := c.registry.Get(row.Name); !exists {
+		return nil
+	}
+	if row.ConsecutiveFailures > 0 && row.ConsecutiveFailures%5 == 0 {
+		if err := mgr.RecreateAll(ctx, recreatePollInterval); err != nil {
+			return err
+		}
+		if err := c.ensureReplicas(ctx, row.Name, targetReplicas); err != nil {
+			return err
+		}
+		return c.store.ResetFailures(ctx, row.Name)
+	}
+	if err := mgr.CreateAll(ctx); err != nil {
+		return err
+	}
+	if err := c.ensureReplicas(ctx, row.Name, targetReplicas); err != nil {
+		return err
+	}
+	return c.store.ResetFailures(ctx, row.Name)
 }
 
 func (c *Controller) ensureReplicas(ctx context.Context, name string, want int32) error {

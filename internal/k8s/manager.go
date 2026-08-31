@@ -3,6 +3,8 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -107,4 +109,37 @@ func (m *ServerManager) DeleteAll(ctx context.Context, deleteStorage bool) error
 	}
 
 	return nil
+}
+
+func (m *ServerManager) RecreateAll(ctx context.Context, sleep time.Duration) error {
+	err := m.DeleteAll(ctx, false)
+	if err != nil {
+		return err
+	}
+	log.Printf("attempting to recreate '%s' for 150 seconds", m.opts.Name)
+	ticker := time.NewTicker(150 * time.Second)
+	defer ticker.Stop()
+
+PollLoop:
+	for {
+		time.Sleep(sleep)
+		select {
+		case <-ticker.C:
+			if _, err := m.client.AppsV1().Deployments(m.opts.Namespace).Get(ctx, m.opts.Name, metav1.GetOptions{}); err != nil {
+				if apierrors.IsNotFound(err) {
+					break PollLoop
+				}
+			}
+			return fmt.Errorf("deployment '%s' still terminating after wait deadline", m.opts.Name)
+		default:
+			if _, err := m.client.AppsV1().Deployments(m.opts.Namespace).Get(ctx, m.opts.Name, metav1.GetOptions{}); err != nil {
+				if apierrors.IsNotFound(err) {
+					break PollLoop
+				} else {
+					return err
+				}
+			}
+		}
+	}
+	return m.CreateAll(ctx)
 }
