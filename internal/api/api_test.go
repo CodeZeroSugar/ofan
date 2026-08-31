@@ -146,9 +146,7 @@ func (s *apiSuite) TestDelete_Unknown() {
 	body := "{}"
 	ctx := context.Background()
 	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
-	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
-
-	s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/ghost/delete", body)
 
 	s.rr = httptest.NewRecorder()
 	mux.ServeHTTP(s.rr, req)
@@ -201,6 +199,59 @@ func (s *apiSuite) TestList() {
 
 	s.Assert().Contains(s.rr.Body.String(), `"alpha"`)
 	s.Assert().Contains(s.rr.Body.String(), `"bravo"`)
+}
+
+func (s *apiSuite) TestList_Empty() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/servers", s.cfg.HandlerListGameServers)
+
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+
+	body := "{}"
+	req := s.reqWithUser(admin, http.MethodGet, "/api/v1/servers", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+	s.Assert().Equal("{}", s.rr.Body.String())
+}
+
+func (s *apiSuite) TestList_OwnerFilter() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/servers", s.cfg.HandlerListGameServers)
+
+	ctx := context.Background()
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "bravo", "bob", testConfigJSON("bravo")))
+
+	s.cfg.InformerManager.Registry.Upsert("alpha", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+	s.cfg.InformerManager.Registry.Upsert("bravo", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := "{}"
+	req := s.reqWithUser(bob, http.MethodGet, "/api/v1/servers", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	var servers map[string]ServerView
+	s.Require().NoError(json.NewDecoder(s.rr.Body).Decode(&servers))
+
+	for _, sv := range servers {
+		s.Assert().Equal("bravo", sv.Name)
+		s.Assert().Equal("bob", sv.Owner)
+	}
 }
 
 func (s *apiSuite) TestStart_Valid() {
@@ -299,6 +350,38 @@ func (s *apiSuite) TestStop_Valid() {
 	srv, err := s.cfg.Store.GetServer(ctx, "alpha")
 	s.Require().NoError(err)
 	s.Assert().True(srv.DesiredState == "stopped")
+}
+
+func (s *apiSuite) TestStop_Forbidden() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.cfg.HandlerStopGameServer)
+
+	ctx := context.Background()
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+	bob, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	req := s.reqWithUser(bob, http.MethodPost, "/api/v1/servers/alpha/stop", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func (s *apiSuite) TestStop_NotFound() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.cfg.HandlerStopGameServer)
+
+	ctx := context.Background()
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/stop", "{}")
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusNotFound, s.rr.Code)
 }
 
 func (s *apiSuite) TestStop_Conflict() {
@@ -805,6 +888,28 @@ func (s *apiSuite) TestPromoteUser_Valid() {
 	s.Assert().True(user.IsAdmin)
 }
 
+func (s *apiSuite) TestPromoteDemote_IsRoot() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/promote/{username}", s.cfg.HandlerPromoteUser)
+	mux.HandleFunc("POST /api/v1/admin/users/demote/{username}", s.cfg.HandlerDemoteUser)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/promote/admin", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/demote/admin", body)
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
 func (s *apiSuite) TestDemoteUser_Valid() {
 	ctx := context.Background()
 	mux := http.NewServeMux()
@@ -824,6 +929,23 @@ func (s *apiSuite) TestDemoteUser_Valid() {
 	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
 	s.Require().NoError(err)
 	s.Assert().False(user.IsAdmin)
+}
+
+func (s *apiSuite) TestDemoteUser_Self() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/admin/users/demote/{username}", s.cfg.HandlerDemoteUser)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/admin/users/demote/bob", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
 }
 
 func (s *apiSuite) TestPromoteDemote_NotFound() {
@@ -913,6 +1035,118 @@ func (s *apiSuite) TestListUsers() {
 
 	s.Assert().Contains(names, "admin")
 	s.Assert().Contains(names, "bob")
+}
+
+func (s *apiSuite) TestListUsersEmpty() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/admin/users", s.cfg.HandlerListUsers)
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	body := `{}`
+	req := s.reqWithUser(admin, http.MethodGet, "/api/v1/admin/users", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+
+	var users []db.User
+	s.Require().NoError(json.NewDecoder(s.rr.Body).Decode(&users))
+
+	var names []string
+	for _, u := range users {
+		names = append(names, u.Username)
+	}
+
+	s.Assert().Contains(names, "admin")
+	s.Assert().True(len(names) == 1)
+}
+
+func (s *apiSuite) TestDeletePVC_AdminNoOwn() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", true))
+
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{
+	"delete_storage":true
+	}`
+	req := s.reqWithUser(admin, http.MethodGet, "/api/v1/servers/alpha/delete", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+	s.Assert().Contains(s.rr.Body.String(), "must transfer ownership first")
+}
+
+func (s *apiSuite) TestDelete_NonOwner() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	body := `{
+	"delete_storage":true
+	}`
+	req := s.reqWithUser(admin, http.MethodGet, "/api/v1/servers/alpha/delete", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func (s *apiSuite) TestDeriveHealth() {
+	tests := []struct {
+		name     string
+		status   string
+		desired  string
+		failures int
+		expected string
+	}{
+		{
+			name:     "healthy",
+			status:   "provisioning",
+			desired:  "running",
+			failures: 0,
+			expected: "healthy",
+		},
+		{
+			name:     "failed",
+			status:   "provisioning",
+			desired:  "running",
+			failures: 5,
+			expected: "failed",
+		},
+		{
+			name:     "healthy deleting",
+			status:   "deleting",
+			desired:  "deleting",
+			failures: 0,
+			expected: "healthy",
+		},
+		{
+			name:     "degraded",
+			status:   "unknown",
+			desired:  "sdfasdfad",
+			failures: 0,
+			expected: "degraded",
+		},
+	}
+
+	for _, tc := range tests {
+		s.Assert().Equal(tc.expected, deriveHealth(tc.status, tc.desired, tc.failures))
+	}
 }
 
 func TestApiSuite(t *testing.T) {

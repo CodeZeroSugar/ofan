@@ -584,3 +584,15 @@ func TestEnsureReplicasError_IncrementsFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, srv.ConsecutiveFailures)
 }
+
+func TestReconcilePass(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+
+	c.reconcilePass(ctx)
+
+	assertResourcesExist(t, client, "alpha")
+}

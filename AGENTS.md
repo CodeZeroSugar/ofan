@@ -17,6 +17,10 @@ implementing the code, but WILL NOT write the code to files themselves.
 
 The only files the agents may contribute to directly are AGENTS.md and TODO.md
 
+**Canonical memory**: AGENTS.md is the repo-committed canonical record of
+decisions, rules, and roadmap. TODO.md is gitignored local scratch — task state
+only, transient, not part of the repo.
+
 ## Tech stack & policies
 
 - Go 1.26+, module `github.com/CodeZeroSugar/ofan`
@@ -52,9 +56,71 @@ The only files the agents may contribute to directly are AGENTS.md and TODO.md
 
 ## Locked domain rules
 
+Hard architectural contracts. A reviewer must flag any change that violates
+these. These are decisions, not suggestions.
+
+- **Declarative controller model** — DB = desired state, cluster = actual state
+  (registry), controller converges. Handlers make **zero k8s calls**; they
+  mutate the `servers` row and `Poke()`. The lone documented exception is
+  `HandlerDeletePVC` (orphaned storage has no row to converge).
+- **Ownership is DB-only** — `servers.owner` FK → `users.username`. No ownership
+  labels in k8s. `Owner` lives on the row / `ServerView`, never on
+  `ServerState`.
+- **Delete = tombstone** — `desired_state='deleting'` + `purge_storage` flag;
+  the controller consumes it after teardown. Crash-safe; PVC preserved by
+  default.
+- **Drift → auto-teardown** — registry entries with no DB row after 3
+  consecutive passes get `InsertOrphanTombstone` (PVC preserved). `MarkDeleting`
+  is UPDATE-only and must never be used for rowless orphans.
+- **Failure gate at 5** — `consecutive_failures >= 5` gates `running`/`stopped`;
+  `deleting` executes unconditionally (bypasses the gate).
+- **Cadence** — 30s ticker + cap-1 poke channel from handlers.
+- **PVC policy** — root deletes any server's PVC; others only their own;
+  non-owner admin must transfer ownership first. Orphaned-PVC purge via
+  `POST /api/v1/system/purge-storage/{name}` (root-only, `confirm:true`).
+- **Self-targeting guards** — `rejectSelf` on suspend/demote/delete/start/stop.
+- **`Poke` is a field, not a method** — nil-guard every handler call.
+- **NodePort auto-assign** — user-configurable `node_port` removed.
+  `BuildService` always emits `nodePort: 0`; `ServerState.NodePort/QueryPort`
+  are informer-sourced actuals only.
+- **List contract** — `map[string]ServerView` keyed by server name; empty case
+  returns `{}`; rowless uptime uses `IsZero()` fallback to registry `CreatedAt`.
+- **Auth model** — role enforced via middleware; ownership enforced in the
+  handler. Root can never be deleted or demoted.
+
 ## Workflow
 
 ### Task lifecycle
+
+Agents do not write code; the lifecycle is a guide/review loop:
+
+1. **Intake** — clarify the goal. Read the relevant files and trace the flow
+   end-to-end before advising. Never advise on a partial picture.
+2. **Guide** — explain step by step. Function signatures, data structures, and
+   test tables are fair game. Avoid code snippets and complete files/functions.
+3. **Review** — verify user-written code against the Locked domain rules and the
+   Review checklist. Recommend test cases for gaps (see Testing philosophy).
+4. **Closeout** — only AGENTS.md and TODO.md are ever written. Keep the roadmap
+   current as decisions land or change.
+
+### Review checklist (rule → check)
+
+A code-review aid mapping each locked rule to its observable target. Rows
+reference the rule numbers in Locked domain rules.
+
+| # | Rule | When reviewing, verify |
+|---|------|------------------------|
+| 1 | Handlers make zero k8s calls | No `Clientset`/`Registry` mutation in handlers except `HandlerDeletePVC` (documented exception). Handlers mutate the row + `Poke()`. |
+| 2 | DB = desired, cluster = actual | New state transitions route through `desired_state` + reconcile; nothing sets k8s replicas outside `convergeRow`/`ensureReplicas`. |
+| 3 | Ownership is DB-only | `Owner` never added to `ServerState`; ownership reads come from the `servers` row via `GetServer`. No ownership labels in k8s. |
+| 4 | Delete = tombstone | Delete paths set `desired_state='deleting'` (+ `purge_storage`); no direct k8s delete except via `convergeRow` → `DeleteAll`. |
+| 5 | Drift → auto-teardown | Orphan teardown goes through `InsertOrphanTombstone` (PVC preserved); `MarkDeleting` (UPDATE-only) is never used for rowless orphans. |
+| 6 | Foreign resources untouched | Informer upserts still filter `LabelManagedBy`; nothing strips that guard or adds foreign deployments to the registry. |
+| 7 | Failure gate at 5 | Gate check sits inside the `running`/`stopped` branches; `deleting` executes unconditionally. |
+| 8 | `Poke` nil-guarded | Every handler calling `c.Poke()` first checks `c.Poke != nil`. |
+| 9 | NodePort auto-assign | `BuildService` still emits `nodePort: 0`; no user-configurable port re-introduced; `NodePort`/`QueryPort` remain informer-sourced actuals. |
+| 10 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. |
+| 11 | Auth = middleware, ownership = handler | New endpoints gate role in middleware and ownership (`srvRec.Owner` vs `userCtx`) in the handler; `rejectSelf` still guards self-targeting ops. |
 
 ### Testing philosophy
 
@@ -64,7 +130,38 @@ The only files the agents may contribute to directly are AGENTS.md and TODO.md
 
 ## Commands
 
+No Makefile or CI exists. Plain Go commands:
+
+- `go test ./...` — primary verification. Agent-safe to run (tests use in-memory
+  sqlite; non-destructive). Add `-race -count=1` for a full run.
+- `go build ./...` — compile check.
+- `go vet ./...` — static check.
+- `go mod tidy` — when dependencies change.
+
+Agents never run `go run`, `kubectl apply`, or any DB-mutating command. The user
+runs those.
+
 ## Known gotchas
+
+- `opts.Namespace = c.namespace` injection is required in the controller —
+  empty namespace makes k8s reject resource creation.
+- `CreateAll` has a service-existence pre-check (`Get` → create only on
+  `IsNotFound`) to avoid the "provided port is already allocated" failure
+  spiral.
+- The failure gate sits *inside* the `running`/`stopped` switch so `deleting`
+  bypasses the `>= 5` gate (failed servers can always be torn down).
+- `deploymentStatus` treats nil `Spec.Replicas` as 1 (matches k8s) so a
+  nil-replicas deployment reports `provisioning`, not `stopped`.
+- Rowless uptime: `IsZero()` fallback to registry `CreatedAt` when the DB row
+  is missing.
+- sqlite: `SetMaxOpenConns(1)`, WAL + `foreign_keys` pragmas; FK-safe delete
+  order is `servers` before `users`.
+- `MarkDeleting` is UPDATE-only — rowless orphans need `InsertOrphanTombstone`
+  (INSERT tombstone with `purge_storage=0`, config carrying `server_name`).
+- Dev DBs are throwaway on schema change — delete `data/*.db` and let migrate
+  rebuild.
+- Service informer has no `DeleteFunc` — a manually-deleted service leaves stale
+  `NodePort`/`QueryPort` in the registry until its deployment is deleted.
 
 ## Roadmap — future (high level)
 
