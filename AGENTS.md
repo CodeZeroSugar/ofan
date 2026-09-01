@@ -189,6 +189,10 @@ user's to perform.
   order is `servers` before `users`.
 - `MarkDeleting` is UPDATE-only — rowless orphans need `InsertOrphanTombstone`
   (INSERT tombstone with `purge_storage=0`, config carrying `server_name`).
+- Root is bootstrapped with `must_change_password=1` (fresh DB or
+  `/api/v1/system/reset`). `AuthMiddleware` 403s every route except
+  `/api/v1/auth/password` and `/api/v1/auth/logout` until changed — API tests
+  and the smoke script must change the password before hitting server endpoints.
 - Dev DBs are throwaway on schema change — delete `data/*.db` and let migrate
   rebuild.
 - Service informer has no `DeleteFunc` — a manually-deleted service leaves stale
