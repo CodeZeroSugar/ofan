@@ -149,6 +149,11 @@ No Makefile or CI exists. Plain Go commands:
 - `go vet ./...` — static check.
 - `go mod tidy` — when dependencies change.
 
+Agents are authorized to run the verification commands above, including
+package-scoped variants (e.g. `go test ./internal/controller/`,
+`go vet ./internal/db`, `go build ./cmd/server`). Read-only build/test
+operations — tests use in-memory sqlite, non-destructive.
+
 Agents never run `go run`, `kubectl apply`, or any DB-mutating command. The user
 runs those.
 
