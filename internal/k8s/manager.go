@@ -12,6 +12,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var recreateDeadline = 150 * time.Second
+
 type ServerManager struct {
 	opts   ServerOpts
 	client kubernetes.Interface
@@ -117,7 +119,7 @@ func (m *ServerManager) RecreateAll(ctx context.Context, sleep time.Duration) er
 		return err
 	}
 	log.Printf("attempting to recreate '%s' for 150 seconds", m.opts.Name)
-	ticker := time.NewTicker(150 * time.Second)
+	ticker := time.NewTicker(recreateDeadline)
 	defer ticker.Stop()
 
 PollLoop:

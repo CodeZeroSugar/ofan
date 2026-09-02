@@ -24,6 +24,7 @@ func newTestController(t *testing.T) (*db.Store, *fake.Clientset, *k8s.ServerReg
 	t.Helper()
 	store, _ := db.NewStore(context.Background(), "file::memory:", "root", "testhash")
 	t.Cleanup(func() { store.Close() })
+	recreatePollInterval = 10 * time.Millisecond
 	cs := fake.NewSimpleClientset()
 	reg := k8s.NewServerRegistry()
 	return store, cs, reg, NewController(store, cs, reg, testNS)
@@ -545,4 +546,150 @@ func TestReconcilePass(t *testing.T) {
 	c.reconcilePass(ctx)
 
 	assertResourcesExist(t, client, "alpha")
+}
+
+func TestSoftFix_Below5(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+
+	require.NoError(t, c.Reconcile(ctx))
+	_, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	}
+
+	require.NoError(t, c.Reconcile(ctx))
+	assertResourcesExist(t, client, "alpha")
+}
+
+func hasDeleteAction(client *fake.Clientset, resource string) bool {
+	for _, action := range client.Actions() {
+		del, ok := action.(k8stesting.DeleteAction)
+		if ok && del.GetResource().Resource == resource {
+			return true
+		}
+	}
+	return false
+}
+
+func TestHardReset_At5(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	}
+	assertResourcesExist(t, client, "alpha")
+
+	require.NoError(t, c.Reconcile(ctx))
+	assertResourcesExist(t, client, "alpha")
+	assert.True(t, pvcExists(client, "alpha"))
+
+	require.True(t, hasDeleteAction(client, "deployments"))
+}
+
+func TestHardReset_At10(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	for i := 0; i < 10; i++ {
+		require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	}
+	assertResourcesExist(t, client, "alpha")
+
+	require.NoError(t, c.Reconcile(ctx))
+	assertResourcesExist(t, client, "alpha")
+	assert.True(t, pvcExists(client, "alpha"))
+
+	require.True(t, hasDeleteAction(client, "deployments"))
+}
+
+func TestHardReset_PreservesPVC(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "stopped", false)
+	seedRegistry(t, reg, "alpha", 0)
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	}
+	assertResourcesExist(t, client, "alpha")
+
+	require.NoError(t, c.Reconcile(ctx))
+	assertResourcesExist(t, client, "alpha")
+	assert.True(t, pvcExists(client, "alpha"))
+
+	require.True(t, hasDeleteAction(client, "deployments"))
+}
+
+func TestSuccess_ResetsMidStreak(t *testing.T) {
+	ctx := context.Background()
+	s, _, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", false)
+	seedRegistry(t, reg, "alpha", 1)
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, s.IncrementFailure(ctx, "alpha"))
+	}
+
+	require.NoError(t, c.Reconcile(ctx))
+	srv, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	assert.Equal(t, 0, srv.ConsecutiveFailures)
+}
+
+func TestDeleting_RegistryMissing_Consumed(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "deleting", false)
+	require.NoError(t, c.Reconcile(ctx))
+
+	_, err := s.GetServer(ctx, "alpha")
+	assert.ErrorIs(t, err, db.ErrServerNotFound)
+}
+
+func TestDeleting_RegistryMissing_PurgesPVC(t *testing.T) {
+	ctx := context.Background()
+	s, client, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "deleting", true)
+	require.NoError(t, c.Reconcile(ctx))
+
+	_, err := s.GetServer(ctx, "alpha")
+	assert.ErrorIs(t, err, db.ErrServerNotFound)
+
+	assert.False(t, pvcExists(client, "alpha"))
+}
+
+func TestRunning_RegistryMissing_StillSkipped(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", true)
+	require.NoError(t, c.Reconcile(ctx))
+
+	_, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
 }

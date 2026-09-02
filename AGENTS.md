@@ -152,6 +152,10 @@ No Makefile or CI exists. Plain Go commands:
 Agents never run `go run`, `kubectl apply`, or any DB-mutating command. The user
 runs those.
 
+- `scripts/smoke.sh` — end-to-end smoke test (auth/reset → server lifecycle →
+  delete/purge) against a live k3s. User-run only: needs the server running and
+  mutates the DB + cluster. Agents never run it.
+
 Agents never commit, amend, push, or create PRs. All VCS operations are the
 user's to perform.
 
