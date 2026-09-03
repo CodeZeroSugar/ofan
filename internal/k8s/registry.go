@@ -74,6 +74,18 @@ func (r *ServerRegistry) Delete(name string) {
 	delete(r.servers, name)
 }
 
+func (r *ServerRegistry) UpdateIfExists(name string, fn func(*ServerState)) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.servers[name]
+	if !ok {
+		return false
+	}
+	s.UpdatedAt = time.Now()
+	fn(s)
+	return true
+}
+
 func deploymentStatus(d *appsv1.Deployment) string {
 	if d.DeletionTimestamp != nil {
 		return "deleting"

@@ -39,6 +39,7 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 	_, err = serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { mgr.upsertService(obj.(*corev1.Service)) },
 		UpdateFunc: func(_, newObj interface{}) { mgr.upsertService(newObj.(*corev1.Service)) },
+		DeleteFunc: mgr.deleteService,
 	})
 	if err != nil {
 		log.Printf("error occurered while registing service event handlers: %v", err)
@@ -84,6 +85,31 @@ func (m *InformerManager) deleteDeployment(obj interface{}) {
 		}
 	}
 	m.Registry.Delete(d.Name)
+}
+
+func (m *InformerManager) deleteService(obj interface{}) {
+	svc, ok := obj.(*corev1.Service)
+	if !ok {
+		tomb, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return
+		}
+		svc, ok = tomb.Obj.(*corev1.Service)
+		if !ok {
+			return
+		}
+	}
+	if svc.Labels[LabelManagedBy] != ManagedByOfan {
+		return
+	}
+
+	if ok = m.Registry.UpdateIfExists(strings.TrimSuffix(svc.Name, "-service"), func(s *ServerState) {
+		s.NodePort = 0
+		s.QueryPort = 0
+	}); !ok {
+		return
+	}
+	log.Printf("'%s' deleted, ports purged from registry entry", svc.Name)
 }
 
 func (m *InformerManager) upsertService(obj *corev1.Service) {
