@@ -267,7 +267,7 @@ func TestStoppedRow_ScalesToZero(t *testing.T) {
 	assert.Equal(t, &zeroPtr, dep.Spec.Replicas)
 }
 
-func TestNoRegistryEntry_SkipsRow(t *testing.T) {
+func TestNoRegistryEntry_Reprovisions(t *testing.T) {
 	ctx := context.Background()
 	s, client, _, c := newTestController(t)
 
@@ -276,7 +276,7 @@ func TestNoRegistryEntry_SkipsRow(t *testing.T) {
 	err := c.Reconcile(ctx)
 	require.NoError(t, err)
 
-	assertResourcesNotExist(t, client, "alpha")
+	assertResourcesExist(t, client, "alpha")
 }
 
 func TestCorruptConfig_IncrementsFailure(t *testing.T) {
@@ -683,13 +683,14 @@ func TestDeleting_RegistryMissing_PurgesPVC(t *testing.T) {
 	assert.False(t, pvcExists(client, "alpha"))
 }
 
-func TestRunning_RegistryMissing_StillSkipped(t *testing.T) {
+func TestRunning_RegistryMissing_Reprovisions(t *testing.T) {
 	ctx := context.Background()
-	s, _, _, c := newTestController(t)
+	s, client, _, c := newTestController(t)
 
 	seedRow(t, s, "alpha", "running", true)
 	require.NoError(t, c.Reconcile(ctx))
 
 	_, err := s.GetServer(ctx, "alpha")
 	require.NoError(t, err)
+	assertResourcesExist(t, client, "alpha")
 }

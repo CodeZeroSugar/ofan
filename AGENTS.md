@@ -83,8 +83,11 @@ these. These are decisions, not suggestions.
   fix every pass (idempotent `CreateAll` + `ensureReplicas`); on
   `failures % 5 == 0` a hard reset rebuilds non-PVC resources — graceful
   `DeleteAll(storage=false)` → wait for deletion (150s = 120s grace + headroom)
-  → fresh `CreateAll`. `deleting` executes unconditionally (bypasses the
-  registry-missing skip so zombie tombstones are consumed).
+  → fresh `CreateAll`. `deleting` executes unconditionally.
+- **Registry-less rows re-provision** — a `running`/`stopped` row with no registry
+  entry is rebuilt on the next pass (idempotent `CreateAll`); a deliberate
+  `kubectl delete` of a deployment is re-created because the DB is the source
+  of truth.
 - **Cadence** — 30s ticker + cap-1 poke channel from handlers.
 - **PVC policy** — root deletes any server's PVC; others only their own;
   non-owner admin must transfer ownership first. Orphaned-PVC purge via
@@ -127,7 +130,7 @@ reference the rule numbers in Locked domain rules.
 | 4 | Delete = tombstone | Delete paths set `desired_state='deleting'` (+ `purge_storage`); no direct k8s delete except via `convergeRow` → `DeleteAll`. |
 | 5 | Drift → auto-teardown, no adoption | Orphan teardown goes through `InsertOrphanTombstone` (PVC preserved); `MarkDeleting` (UPDATE-only) is never used for rowless orphans; no handler/controller path writes a row for a rowless registry entry. |
 | 6 | Foreign resources untouched | Informer upserts still filter `LabelManagedBy`; nothing strips that guard or adds foreign deployments to the registry. |
-| 7 | Unhealthy-server escalation ladder | No gate/retry logic re-introduced: `consecutive_failures` only ever resets via success reset, never a hard stop. `failures % 5 == 0` triggers a hard reset (graceful `DeleteAll(storage=false)` → bounded wait ≤150s → fresh `CreateAll`, PVC preserved). `deleting` executes unconditionally (bypasses the registry-missing skip). |
+| 7 | Unhealthy-server escalation ladder | No gate/retry logic re-introduced: `consecutive_failures` only ever resets via success reset, never a hard stop. `failures % 5 == 0` triggers a hard reset (graceful `DeleteAll(storage=false)` → bounded wait ≤150s → fresh `CreateAll`, PVC preserved). `deleting` executes unconditionally; `running`/`stopped` rows with no registry entry proceed to `CreateAll`. |
 | 8 | `Poke` nil-guarded | Every handler calling `c.Poke()` first checks `c.Poke != nil`. |
 | 9 | NodePort auto-assign | `BuildService` still emits `nodePort: 0`; no user-configurable port re-introduced; `NodePort`/`QueryPort` remain informer-sourced actuals. |
 | 10 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. |
@@ -174,16 +177,17 @@ user's to perform.
 - The escalation ladder sits *inside* the `running`/`stopped` switch (soft fix
   vs `% 5` hard reset); `deleting` executes unconditionally so teardown always
   wins over any in-flight reconcile.
-- `deleting` also bypasses the registry-missing skip in `convergeRow` — the
-  skip is scoped to the `running`/`stopped` branches, so a zombie tombstone
-  (deleting row with no registry entry) is still consumed. `running` rows with
-  no registry entry remain skipped (zombie re-provision is open backlog).
+- `convergeRow` has no registry-missing skip — a row with no registry entry
+  proceeds normally (`running`/`stopped` re-provision via idempotent `CreateAll`;
+  `deleting` tears down as usual). `ensureReplicas` still no-ops on a miss until
+  the informer syncs.
 - Escalation ladder: `consecutive_failures` has no terminal state — it climbs
   (API-error-only) and resets only via a successful converge (or row removal).
   The `% 5 == 0` hard reset deletes the deployment gracefully, so the rebuild
   must wait out the full termination grace (≤150s) before `CreateAll` — a
-  shorter wait strands a mid-save pod: poll timeout → registry entry drops →
-  zombie skip → never re-provisioned.
+  shorter wait errors on `AlreadyExists` while the old object terminates
+  (failure churn until it clears); a dropped registry entry simply
+  re-provisions on the next pass.
 - `stateActions` (controller) takes a `targetReplicas` param — never hardcode a
   replica literal inside it (`maxReplicas` is a var; a literal breaks if it
   changes).
@@ -224,5 +228,4 @@ user's to perform.
 - `handlerReadiness` — actually report informer sync state instead of always 200.
 - `ServerOpts.StorageSize` dead field — either wire into the builder or remove.
 - Service informer has no `DeleteFunc` — a manually-deleted service leaves stale `NodePort`/`QueryPort` in the registry until its deployment is deleted. Harmless in the normal flow (deployment delete clears the entry), but a footgun for out-of-band cleanup.
-- Running-row zombie: a `running` DB row whose registry entry was removed (e.g. manual `kubectl delete` of the deployment) is skipped by `convergeRow` (`!registry.Get` → `nil`) and never re-provisioned. Accepted for v1 — clean DB makes it moot — but worth revisiting. *(The delete-path half — deleting tombstones with no registry entry get consumed — is fixed by C4.)*
 - Periodic reconcile loop option — startup pass + poke-driven passes first; add a slow background ticker later if drift-from-external-changes needs faster cleanup than 30s ticks... (already 30s; revisit only if needed).

@@ -118,9 +118,6 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 }
 
 func (c *Controller) stateActions(ctx context.Context, mgr *k8s.ServerManager, row db.ServerRecord, targetReplicas int32) error {
-	if _, exists := c.registry.Get(row.Name); !exists {
-		return nil
-	}
 	if row.ConsecutiveFailures > 0 && row.ConsecutiveFailures%5 == 0 {
 		if err := mgr.RecreateAll(ctx, recreatePollInterval); err != nil {
 			return err
