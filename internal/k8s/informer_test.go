@@ -210,3 +210,133 @@ func TestUpsertSerivce(t *testing.T) {
 
 	}
 }
+
+func TestDeleteService(t *testing.T) {
+	tests := []struct {
+		name              string
+		managed           bool
+		ports             []corev1.ServicePort
+		expectExists      bool
+		expectedNodePort  int32
+		expectedQueryPort int32
+		seed              bool
+		obj               interface{}
+	}{
+		{
+			name:    "entry exists",
+			managed: true,
+			ports: []corev1.ServicePort{
+				{Name: "valheim-udp", NodePort: 30001},
+				{Name: "valheim-query", NodePort: 30002},
+			},
+			expectExists:      true,
+			expectedNodePort:  0,
+			expectedQueryPort: 0,
+			seed:              true,
+			obj:               &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "alpha-service", Labels: map[string]string{LabelManagedBy: ManagedByOfan}}},
+		},
+		{
+			name:    "no entry",
+			managed: true,
+			ports: []corev1.ServicePort{
+				{Name: "valheim-udp", NodePort: 30001},
+				{Name: "valheim-query", NodePort: 30002},
+			},
+			expectExists:      false,
+			expectedNodePort:  0,
+			expectedQueryPort: 0,
+			seed:              false,
+			obj:               &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "alpha-service", Labels: map[string]string{LabelManagedBy: ManagedByOfan}}},
+		},
+		{
+			name:    "foreign delete ignored",
+			managed: false,
+			ports: []corev1.ServicePort{
+				{Name: "other", NodePort: 30001},
+				{Name: "other-one", NodePort: 30001},
+			},
+			expectExists:      false,
+			expectedNodePort:  0,
+			expectedQueryPort: 0,
+			seed:              true,
+			obj:               &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "alpha-service", Namespace: "not-ofan", Labels: map[string]string{LabelManagedBy: "not-by-ofan"}}},
+		},
+		{
+			name:    "tombstone-wrapped service",
+			managed: true,
+			ports: []corev1.ServicePort{
+				{Name: "valheim-udp", NodePort: 30001},
+				{Name: "valheim-query", NodePort: 30001},
+			},
+			expectExists:      true,
+			expectedNodePort:  0,
+			expectedQueryPort: 0,
+			seed:              true,
+			obj: cache.DeletedFinalStateUnknown{
+				Key: "default/alpha-service",
+				Obj: &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "alpha-service",
+						Labels: map[string]string{
+							LabelManagedBy: ManagedByOfan,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "tombstone wrapping non-service",
+			managed: true,
+			ports: []corev1.ServicePort{
+				{Name: "valheim-udp", NodePort: 30001},
+				{Name: "valheim-query", NodePort: 30002},
+			},
+			expectExists:      true,
+			expectedNodePort:  30001,
+			expectedQueryPort: 30002,
+			seed:              true,
+			obj: cache.DeletedFinalStateUnknown{
+				Key: "default/alpha-pod",
+				Obj: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "alpha-pod",
+						Labels: map[string]string{
+							LabelManagedBy: ManagedByOfan,
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr := &InformerManager{Registry: NewServerRegistry()}
+			if tt.seed {
+				labels := make(map[string]string, 0)
+				if tt.managed {
+					labels[LabelManagedBy] = ManagedByOfan
+				}
+				svc := &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "alpha-service",
+						Labels: labels,
+					},
+					Spec: corev1.ServiceSpec{
+						Ports: tt.ports,
+					},
+				}
+				mgr.upsertService(svc)
+			}
+			assert.NotPanics(t, func() { mgr.deleteService(tt.obj) })
+
+			s, ok := mgr.Registry.Get("alpha")
+			if tt.expectExists {
+				require.True(t, ok)
+				assert.Equal(t, tt.expectedNodePort, s.NodePort)
+				assert.Equal(t, tt.expectedQueryPort, s.QueryPort)
+			} else {
+				assert.False(t, ok)
+			}
+		})
+	}
+}

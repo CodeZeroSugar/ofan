@@ -137,6 +137,6 @@ func TestRegistryMissingEntry(t *testing.T) {
 		s.NodePort = 0
 		s.QueryPort = 0
 	}))
-	_, ok := r.Get("alpha")
+	_, ok := r.Get("ghost")
 	assert.False(t, ok)
 }
