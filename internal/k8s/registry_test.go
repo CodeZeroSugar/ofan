@@ -109,3 +109,34 @@ func TestRegistryConcurrency(t *testing.T) {
 	}
 	assert.Len(t, r.List(), workers)
 }
+
+func TestRegistryUpdateExisting(t *testing.T) {
+	r := NewServerRegistry()
+
+	entry := r.Upsert("alpha", func(s *ServerState) {
+		s.Status = "running"
+		s.NodePort = 30001
+		s.QueryPort = 30002
+	})
+
+	assert.True(t, r.UpdateIfExists("alpha", func(s *ServerState) {
+		s.NodePort = 0
+		s.QueryPort = 0
+	}))
+
+	entry, ok := r.Get("alpha")
+	assert.True(t, ok)
+	assert.Equal(t, int32(0), entry.NodePort)
+	assert.Equal(t, int32(0), entry.QueryPort)
+}
+
+func TestRegistryMissingEntry(t *testing.T) {
+	r := NewServerRegistry()
+
+	assert.False(t, r.UpdateIfExists("ghost", func(s *ServerState) {
+		s.NodePort = 0
+		s.QueryPort = 0
+	}))
+	_, ok := r.Get("alpha")
+	assert.False(t, ok)
+}
