@@ -202,7 +202,7 @@ func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		view.ServerState = &k8s.ServerState{}
 		view.Health = deriveHealth("", s.DesiredState, s.ConsecutiveFailures)
-		view.Uptime = 0
+		view.Uptime = time.Since(s.CreatedAt)
 	} else {
 		view.ServerState = state
 		view.Health = deriveHealth(state.Status, s.DesiredState, s.ConsecutiveFailures)

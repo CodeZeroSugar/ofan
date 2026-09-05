@@ -1106,6 +1106,121 @@ func (s *apiSuite) TestDelete_NonOwner() {
 	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
 }
 
+func (s *apiSuite) TestGetGameServer() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/servers/{server_name}", s.cfg.HandlerGetGameServer)
+
+	tests := []struct {
+		name           string
+		readBy         string
+		srvName        string
+		isRow          bool
+		isReg          bool
+		expectedStatus int
+		expectedHealth string
+	}{
+		{
+			name:           "owner reads own",
+			readBy:         "bob",
+			srvName:        "bravo",
+			isRow:          true,
+			isReg:          true,
+			expectedStatus: http.StatusOK,
+			expectedHealth: "healthy",
+		},
+		{
+			name:           "admin reads others",
+			readBy:         "admin",
+			srvName:        "bravo",
+			isRow:          true,
+			isReg:          true,
+			expectedStatus: http.StatusOK,
+			expectedHealth: "healthy",
+		},
+		{
+			name:           "non-owner denied",
+			readBy:         "bob",
+			srvName:        "alpha",
+			isRow:          true,
+			isReg:          true,
+			expectedStatus: http.StatusForbidden,
+			expectedHealth: "",
+		},
+		{
+			name:           "unknown name",
+			readBy:         "bob",
+			srvName:        "ghost",
+			isRow:          false,
+			isReg:          false,
+			expectedStatus: http.StatusNotFound,
+			expectedHealth: "",
+		},
+		{
+			name:           "orphan (rowless entry)",
+			readBy:         "bob",
+			srvName:        "charlie",
+			isRow:          false,
+			isReg:          true,
+			expectedStatus: http.StatusNotFound,
+			expectedHealth: "",
+		},
+		{
+			name:           "zombie row",
+			readBy:         "bob",
+			srvName:        "delta",
+			isRow:          true,
+			isReg:          false,
+			expectedStatus: http.StatusOK,
+			expectedHealth: "degraded",
+		},
+	}
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "pass123", false))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha")))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "bravo", "bob", testConfigJSON("bravo")))
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "delta", "bob", testConfigJSON("delta")))
+
+	s.cfg.InformerManager.Registry.Upsert("alpha", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+	s.cfg.InformerManager.Registry.Upsert("bravo", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+	s.cfg.InformerManager.Registry.Upsert("charlie", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+
+	for _, tc := range tests {
+		s.rr = httptest.NewRecorder()
+		switch {
+		case tc.isRow:
+			reader, _ := s.cfg.Store.GetUserByUsername(ctx, tc.readBy)
+			req := s.reqWithUser(reader, http.MethodGet, fmt.Sprintf("/api/v1/servers/%s", tc.srvName), "{}")
+			mux.ServeHTTP(s.rr, req)
+			s.Assert().Equal(tc.expectedStatus, s.rr.Code)
+
+			if tc.expectedStatus != http.StatusOK {
+				continue
+			}
+
+			var view ServerView
+			s.Require().NoError(json.NewDecoder(s.rr.Body).Decode(&view))
+			s.Assert().NotNil(view.ServerState)
+			s.Assert().Equal(tc.expectedHealth, view.Health)
+			s.Assert().True(view.Uptime > 0)
+		default:
+			reader, _ := s.cfg.Store.GetUserByUsername(ctx, tc.readBy)
+			req := s.reqWithUser(reader, http.MethodGet, fmt.Sprintf("/api/v1/servers/%s", tc.srvName), "{}")
+			mux.ServeHTTP(s.rr, req)
+			s.Assert().Equal(tc.expectedStatus, s.rr.Code)
+		}
+	}
+}
+
 func (s *apiSuite) TestDeriveHealth() {
 	tests := []struct {
 		name     string
