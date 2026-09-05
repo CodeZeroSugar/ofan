@@ -208,8 +208,6 @@ user's to perform.
   and the smoke script must change the password before hitting server endpoints.
 - Dev DBs are throwaway on schema change — delete `data/*.db` and let migrate
   rebuild.
-- Service informer has no `DeleteFunc` — a manually-deleted service leaves stale
-  `NodePort`/`QueryPort` in the registry until its deployment is deleted.
 
 ## Roadmap — future (high level)
 
@@ -227,5 +225,3 @@ user's to perform.
 - Live metrics/player counts for the web dashboard.
 - `handlerReadiness` — actually report informer sync state instead of always 200.
 - `ServerOpts.StorageSize` dead field — either wire into the builder or remove.
-- Service informer has no `DeleteFunc` — a manually-deleted service leaves stale `NodePort`/`QueryPort` in the registry until its deployment is deleted. Harmless in the normal flow (deployment delete clears the entry), but a footgun for out-of-band cleanup.
-- Periodic reconcile loop option — startup pass + poke-driven passes first; add a slow background ticker later if drift-from-external-changes needs faster cleanup than 30s ticks... (already 30s; revisit only if needed).

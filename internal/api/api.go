@@ -172,6 +172,54 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 	respondWithJson(w, http.StatusAccepted, resp)
 }
 
+func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	name := r.PathValue("server_name")
+
+	s, err := c.Store.GetServer(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("server '%s' does not exist", name), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to fetch server '%s' from database: %v", name, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+	if userCtx.Username != s.Owner && !userCtx.IsAdmin {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	view := &ServerView{}
+
+	state, ok := c.InformerManager.Registry.Get(name)
+	if !ok {
+		view.ServerState = &k8s.ServerState{}
+		view.Health = deriveHealth("", s.DesiredState, s.ConsecutiveFailures)
+		view.Uptime = 0
+	} else {
+		view.ServerState = state
+		view.Health = deriveHealth(state.Status, s.DesiredState, s.ConsecutiveFailures)
+		created := s.CreatedAt
+		if created.IsZero() {
+			created = state.CreatedAt
+		}
+		view.Uptime = time.Since(created)
+	}
+
+	view.DesiredState = s.DesiredState
+	view.ConsecutiveFailures = s.ConsecutiveFailures
+	view.Owner = s.Owner
+
+	respondWithJson(w, http.StatusOK, view)
+}
+
 func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Request) {
 	userCtx := auth.UserFromContext(r.Context())
 	if userCtx == nil {
