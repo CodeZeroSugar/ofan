@@ -29,12 +29,18 @@ func (s *CreateGameServer) Validate() error {
 	if s.Name == "" {
 		return errors.New("server name is required")
 	}
+
 	matches := re.MatchString(s.Name)
 	if !matches || len(s.Name) > 63 {
 		return fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", s.Name)
 	}
+
 	if s.Password == "" {
 		return errors.New("password is required")
+	}
+
+	if len(s.ServerOpts.Config.CoreSettings.ServerPass) < 5 {
+		return fmt.Errorf("server password must be at least 5 characters")
 	}
 
 	if s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
@@ -43,10 +49,6 @@ func (s *CreateGameServer) Validate() error {
 
 	if p := s.ServerOpts.Config.CoreSettings.ServerPort; p < 1 || p > 65534 {
 		return fmt.Errorf("server_port must be in range 1-65534, got %d", p)
-	}
-
-	if len(s.ServerOpts.Config.CoreSettings.ServerPass) < 5 {
-		return fmt.Errorf("server password must be at least 5 characters")
 	}
 
 	if s.ServerOpts.Config.Mods.BepInEx && s.ServerOpts.Config.Mods.ValheimPlus {

@@ -82,7 +82,6 @@ func cfgMapper(cfg ValheimConfig) map[string]string {
 	m := make(map[string]string, 0)
 	m["SERVER_NAME"] = cfg.CoreSettings.ServerName
 	m["WORLD_NAME"] = cfg.CoreSettings.WorldName
-	m["SERVER_PASS"] = cfg.CoreSettings.ServerPass
 	m["SERVER_PUBLIC"] = strconv.FormatBool(cfg.CoreSettings.ServerPublic)
 	m["SERVER_PORT"] = strconv.Itoa(int(cfg.CoreSettings.ServerPort))
 	m["ADMINLIST_IDS"] = cfg.AccessControl.AdminListIDs
@@ -93,6 +92,7 @@ func cfgMapper(cfg ValheimConfig) map[string]string {
 	m["BACKUPS_CRON"] = cfg.Maintenance.BackupsCron
 	m["UPDATE_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.UpdateIfIdle)
 	m["RESTART_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.RestartIfIdle)
+	m["BACKUPS"] = strconv.FormatBool(cfg.Maintenance.Backups)
 	m["BACKUPS_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.BackupsIfIdle)
 	m["BACKUPS_MAX_AGE"] = strconv.Itoa(cfg.Maintenance.BackupsMaxAge)
 	m["BACKUPS_MAX_COUNT"] = strconv.Itoa(cfg.Maintenance.BackupsMaxCount)
