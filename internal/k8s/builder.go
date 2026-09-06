@@ -1,7 +1,7 @@
 package k8s
 
 import (
-	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -78,6 +78,32 @@ func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 	}
 }
 
+func cfgMapper(cfg ValheimConfig) map[string]string {
+	m := make(map[string]string, 0)
+	m["SERVER_NAME"] = cfg.CoreSettings.ServerName
+	m["WORLD_NAME"] = cfg.CoreSettings.WorldName
+	m["SERVER_PASS"] = cfg.CoreSettings.ServerPass
+	m["SERVER_PUBLIC"] = strconv.FormatBool(cfg.CoreSettings.ServerPublic)
+	m["SERVER_PORT"] = strconv.Itoa(int(cfg.CoreSettings.ServerPort))
+	m["ADMINLIST_IDS"] = cfg.AccessControl.AdminListIDs
+	m["BANNEDLIST_IDS"] = cfg.AccessControl.BannedListIDs
+	m["PERMITTEDLIST_IDS"] = cfg.AccessControl.PermittedListIDs
+	m["UPDATE_CRON"] = cfg.Maintenance.UpdateCron
+	m["RESTART_CRON"] = cfg.Maintenance.RestartCron
+	m["BACKUPS_CRON"] = cfg.Maintenance.BackupsCron
+	m["UPDATE_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.UpdateIfIdle)
+	m["RESTART_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.RestartIfIdle)
+	m["BACKUPS_IF_IDLE"] = strconv.FormatBool(cfg.Maintenance.BackupsIfIdle)
+	m["BACKUPS_MAX_AGE"] = strconv.Itoa(cfg.Maintenance.BackupsMaxAge)
+	m["BACKUPS_MAX_COUNT"] = strconv.Itoa(cfg.Maintenance.BackupsMaxCount)
+	m["VALHEIM_PLUS"] = strconv.FormatBool(cfg.Mods.ValheimPlus)
+	m["BEPINEX"] = strconv.FormatBool(cfg.Mods.BepInEx)
+	m["TZ"] = cfg.SystemSettings.TimeZone
+	m["PUID"] = strconv.Itoa(cfg.SystemSettings.PUID)
+	m["PGID"] = strconv.Itoa(cfg.SystemSettings.PGID)
+	return m
+}
+
 func (m *ServerManager) BuildConfigMap() *v1.ConfigMap {
 	labels := serverLabels(m.opts.Name)
 	return &v1.ConfigMap{
@@ -90,11 +116,7 @@ func (m *ServerManager) BuildConfigMap() *v1.ConfigMap {
 			Namespace: m.opts.Namespace,
 			Labels:    labels,
 		},
-		Data: map[string]string{
-			"SERVER_NAME":   m.opts.Config.CoreSettings.ServerName,
-			"WORLD_NAME":    m.opts.Config.CoreSettings.WorldName,
-			"SERVER_PUBLIC": fmt.Sprintf("%t", m.opts.Config.CoreSettings.ServerPublic),
-		},
+		Data: cfgMapper(m.opts.Config),
 	}
 }
 

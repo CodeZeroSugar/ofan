@@ -157,6 +157,11 @@ package-scoped variants (e.g. `go test ./internal/controller/`,
 `go vet ./internal/db`, `go build ./cmd/server`). Read-only build/test
 operations — tests use in-memory sqlite, non-destructive.
 
+Agents may use read-only git inspection to stay informed (`git log`, `git show`,
+`git diff`, `git status`, `git branch`, `git ls-files`). Anything that writes
+history or the index — add, commit, amend, push, PRs — stays with the user
+(see below).
+
 Agents never run `go run`, `kubectl apply`, or any DB-mutating command. The user
 runs those.
 

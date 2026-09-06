@@ -69,8 +69,10 @@ func DefaultValheimConfig(name, password string) ValheimConfig {
 			UpdateIfIdle:  true,
 			Backups:       true,
 			BackupsIfIdle: true,
-			BackupsCron:   "0 * * * *",
+			BackupsCron:   "5 * * * *",
 			BackupsMaxAge: 3,
+			RestartIfIdle: true,
+			RestartCron:   "10 5 * * *",
 		},
 		SystemSettings: SystemSettings{
 			TimeZone: "Etc/UTC",
