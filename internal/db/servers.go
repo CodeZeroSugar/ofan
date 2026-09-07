@@ -288,3 +288,22 @@ func (s *Store) InsertOrphanTombstone(ctx context.Context, name, configJSON stri
 	}
 	return nil
 }
+
+func (s *Store) UpdateServerConfig(ctx context.Context, name, configJSON string) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE servers
+		SET config_json = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE name = ?
+		;`, configJSON, name)
+	if err != nil {
+		return fmt.Errorf("failed to update config for server '%s': %w", name, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to validate if config was updated for server '%s': %w", name, err)
+	}
+	if n == 0 {
+		return ErrServerNotFound
+	}
+	return nil
+}

@@ -253,3 +253,84 @@ func TestInsertOphanTombstone(t *testing.T) {
 	assert.Equal(t, "admin", tomb.Owner)
 	assert.False(t, tomb.PurgeStorage)
 }
+
+func TestUpdateServerConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		srvName       string
+		cfgJSON       string
+		expectedJSON  string
+		expectedError error
+	}{
+		{
+			name:          "write read no error",
+			srvName:       "alpha",
+			cfgJSON:       testConfigJSONFull("alpha"),
+			expectedJSON:  testConfigJSONFull("alpha"),
+			expectedError: nil,
+		},
+		{
+			name:          "not found error",
+			srvName:       "ghost",
+			cfgJSON:       testConfigJSONFull("ghost"),
+			expectedJSON:  "",
+			expectedError: ErrServerNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestStore(t)
+			ctx := context.Background()
+
+			switch tt.name {
+			case "write read no error":
+				require.NoError(t, s.CreateServer(ctx, tt.srvName, "admin", testConfigJSON(tt.srvName)))
+				err := s.UpdateServerConfig(ctx, tt.srvName, tt.cfgJSON)
+				assert.Nil(t, err)
+				srv, err := s.GetServer(ctx, tt.srvName)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedJSON, srv.ConfigJSON)
+			case "not found error":
+				require.ErrorIs(t, s.UpdateServerConfig(ctx, tt.srvName, tt.cfgJSON), tt.expectedError)
+			default:
+				t.Fatalf("no matching test case for '%s'", tt.name)
+			}
+		})
+	}
+}
+
+func testConfigJSONFull(name string) string {
+	return fmt.Sprintf(`{
+  "core_settings": {
+    "server_name": "%s",
+    "world_name": "TestWorld",
+    "server_pass": "updatedpass",
+    "server_port": 2456,
+    "server_public": true
+  },
+  "access_control": {
+    "admin_list_ids": "12345"
+  },
+  "maintenance": {
+    "update_cron": "0 * * * *",
+    "update_if_idle": true,
+    "restart_cron": "10 5 * * *",
+    "restart_if_idle": true,
+    "backups": true,
+    "backups_if_idle": false,
+    "backups_cron": "5 * * * *",
+    "backups_max_age": 7,
+    "backups_max_count": 10
+  },
+  "mods": {
+    "valheim_plus": false,
+    "bepinex": false
+  },
+  "system_settings": {
+    "time_zone": "Etc/UTC",
+    "puid": 1000,
+    "pgid": 1000
+  }
+}`, name)
+}
