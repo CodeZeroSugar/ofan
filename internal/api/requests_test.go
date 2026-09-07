@@ -15,6 +15,9 @@ func TestValidate(t *testing.T) {
 		serverName    string
 		password      string
 		optsIsNil     bool
+		modTest       bool
+		bepinex       bool
+		valheimPlus   bool
 		serverPort    int32
 		nodePort      int32
 		expectedError error
@@ -24,6 +27,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "alpha",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			serverPort:    2457,
 			nodePort:      30001,
 			expectedError: nil,
@@ -33,6 +37,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "willthisservernamebevalidimadeitreadllylongsothatiwouldnthaveanynameconflictsthereisnowaythereisacharacterlimit",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", "willthisservernamebevalidimadeitreadllylongsothatiwouldnthaveanynameconflictsthereisnowaythereisacharacterlimit"),
 		},
 		{
@@ -40,6 +45,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "!l!k3$p3c!@1characters",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", "!l!k3$p3c!@1characters"),
 		},
 		{
@@ -47,6 +53,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "alpha",
 			password:      "",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: errors.New("password is required"),
 		},
 		{
@@ -54,6 +61,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: errors.New("server name is required"),
 		},
 		{
@@ -61,6 +69,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "trailinghypen-",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", "trailinghypen-"),
 		},
 		{
@@ -68,6 +77,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "DNSCOMPLIANT",
 			password:      "goodpassword",
 			optsIsNil:     true,
+			modTest:       false,
 			expectedError: fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", "DNSCOMPLIANT"),
 		},
 		{
@@ -75,6 +85,7 @@ func TestValidate(t *testing.T) {
 			serverName:    "alpha",
 			password:      "goodpassword",
 			optsIsNil:     false,
+			modTest:       false,
 			serverPort:    0,
 			nodePort:      30001,
 			expectedError: fmt.Errorf("server_port must be in range 1-65534, got %d", 0),
@@ -84,36 +95,99 @@ func TestValidate(t *testing.T) {
 			serverName:    "alpha",
 			password:      "goodpassword",
 			optsIsNil:     false,
+			modTest:       false,
 			serverPort:    65535,
 			expectedError: fmt.Errorf("server_port must be in range 1-65534, got %d", 65535),
+		},
+		{
+			name:          "validate mod exclusivity both on",
+			serverName:    "alpha",
+			password:      "goodpassword",
+			optsIsNil:     false,
+			modTest:       true,
+			bepinex:       true,
+			valheimPlus:   true,
+			serverPort:    2457,
+			nodePort:      30001,
+			expectedError: fmt.Errorf("cannot select BepInEx and ValheimPlus, choose one"),
+		},
+		{
+			name:          "validate mod exclusivity bepinex on",
+			serverName:    "alpha",
+			password:      "goodpassword",
+			optsIsNil:     false,
+			modTest:       true,
+			bepinex:       true,
+			valheimPlus:   false,
+			serverPort:    2457,
+			nodePort:      30001,
+			expectedError: nil,
+		},
+		{
+			name:          "validate mod exclusivity valheim_plus on",
+			serverName:    "alpha",
+			password:      "goodpassword",
+			optsIsNil:     false,
+			modTest:       true,
+			bepinex:       false,
+			valheimPlus:   true,
+			serverPort:    2457,
+			nodePort:      30001,
+			expectedError: nil,
+		},
+		{
+			name:          "short password",
+			serverName:    "alpha",
+			password:      "gud",
+			optsIsNil:     false,
+			modTest:       false,
+			serverPort:    2457,
+			nodePort:      30001,
+			expectedError: fmt.Errorf("server password must be at least 5 characters"),
+		},
+		{
+			name:          "short password no opts",
+			serverName:    "alpha",
+			password:      "gud",
+			optsIsNil:     true,
+			modTest:       false,
+			serverPort:    2457,
+			nodePort:      30001,
+			expectedError: fmt.Errorf("server password must be at least 5 characters"),
 		},
 	}
 
 	for _, tt := range tests {
-		gs := &CreateGameServer{
-			Name:       tt.serverName,
-			Password:   tt.password,
-			ServerOpts: nil,
-		}
-		if tt.optsIsNil {
-			err := gs.Validate()
-			if tt.expectedError == nil {
-				assert.NoError(t, err)
-			} else {
-				assert.EqualError(t, err, tt.expectedError.Error())
+		t.Run(tt.name, func(t *testing.T) {
+			gs := &CreateGameServer{
+				Name:       tt.serverName,
+				Password:   tt.password,
+				ServerOpts: nil,
 			}
-		} else {
-			config := k8s.DefaultValheimConfig(tt.name, tt.password)
-			opts := k8s.NewServerOpts(tt.name, tt.password, &config)
-			opts.Config.CoreSettings.ServerPort = tt.serverPort
-			gs.ServerOpts = &opts
-			err := gs.Validate()
-			if tt.expectedError == nil {
-				assert.NoError(t, err)
+			if tt.optsIsNil {
+				err := gs.Validate()
+				if tt.expectedError == nil {
+					assert.NoError(t, err)
+				} else {
+					assert.EqualError(t, err, tt.expectedError.Error())
+				}
 			} else {
-				assert.EqualError(t, err, tt.expectedError.Error())
+				config := k8s.DefaultValheimConfig(tt.name, tt.password)
+				opts := k8s.NewServerOpts(tt.name, tt.password, &config)
+				opts.Config.CoreSettings.ServerPort = tt.serverPort
+				gs.ServerOpts = &opts
+				if tt.modTest {
+					gs.ServerOpts.Config.Mods.BepInEx = tt.bepinex
+					gs.ServerOpts.Config.Mods.ValheimPlus = tt.valheimPlus
+				}
+				err := gs.Validate()
+				if tt.expectedError == nil {
+					assert.NoError(t, err)
+				} else {
+					assert.EqualError(t, err, tt.expectedError.Error())
+				}
 			}
-		}
+		})
 	}
 }
 

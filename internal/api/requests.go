@@ -39,12 +39,16 @@ func (s *CreateGameServer) Validate() error {
 		return errors.New("password is required")
 	}
 
-	if len(s.ServerOpts.Config.CoreSettings.ServerPass) < 5 {
+	if len(s.Password) < 5 {
 		return fmt.Errorf("server password must be at least 5 characters")
 	}
 
 	if s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
 		return nil
+	}
+
+	if len(s.ServerOpts.Config.CoreSettings.ServerPass) < 5 {
+		return fmt.Errorf("server password must be at least 5 characters")
 	}
 
 	if p := s.ServerOpts.Config.CoreSettings.ServerPort; p < 1 || p > 65534 {
