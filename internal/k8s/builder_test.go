@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestBuildDeployment(t *testing.T) {
@@ -292,4 +293,15 @@ func TestMapper(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildConfigMap(t *testing.T) {
+	cfg := DefaultValheimConfig("alpha", "secret123")
+	opts := NewServerOpts("alpha", "secret123", &cfg)
+	fc := fake.NewSimpleClientset()
+	mgr := NewServerManager(fc, opts)
+
+	m := cfgMapper(cfg)
+	cm := mgr.BuildConfigMap().Data
+	assert.Equal(t, m, cm)
 }
