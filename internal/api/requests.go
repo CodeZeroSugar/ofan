@@ -46,20 +46,7 @@ func (s *CreateGameServer) Validate() error {
 	if s.ServerOpts == nil || s.ServerOpts.Config == (k8s.ValheimConfig{}) {
 		return nil
 	}
-
-	if len(s.ServerOpts.Config.CoreSettings.ServerPass) < 5 {
-		return fmt.Errorf("server password must be at least 5 characters")
-	}
-
-	if p := s.ServerOpts.Config.CoreSettings.ServerPort; p < 1 || p > 65534 {
-		return fmt.Errorf("server_port must be in range 1-65534, got %d", p)
-	}
-
-	if s.ServerOpts.Config.Mods.BepInEx && s.ServerOpts.Config.Mods.ValheimPlus {
-		return fmt.Errorf("cannot select BepInEx and ValheimPlus, choose one")
-	}
-
-	return nil
+	return s.ServerOpts.Config.Validate()
 }
 
 type DeleteServerRequest struct {
