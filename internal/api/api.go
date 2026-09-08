@@ -466,3 +466,74 @@ func (c *ApiConfig) HandlerDeletePVC(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJson(w, http.StatusOK, messageJson{Message: fmt.Sprintf("PVC for server '%s' successfully deleted", srvName)})
 }
+
+func (c *ApiConfig) HandlerUpdateGameServerConfig(w http.ResponseWriter, r *http.Request) {
+	var newcfg k8s.ValheimConfig
+	if err := json.NewDecoder(r.Body).Decode(&newcfg); err != nil {
+		http.Error(w, "invalid json payload", http.StatusBadRequest)
+		return
+	}
+
+	srvName := r.PathValue("server_name")
+	user := auth.UserFromContext(r.Context())
+
+	srv, err := c.Store.GetServer(r.Context(), srvName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("could not find server '%s'", srvName), http.StatusNotFound)
+			return
+		}
+		log.Printf("user '%s' tried to update config for server '%s' but failed to get owner", user.Username, srvName)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if user.Username != srv.Owner && !user.IsAdmin {
+		http.Error(w, "cannot update config unless owner or admin", http.StatusForbidden)
+		return
+	}
+
+	if err = newcfg.Validate(); err != nil {
+		http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	var currCfg k8s.ValheimConfig
+	if err = json.Unmarshal([]byte(srv.ConfigJSON), &currCfg); err != nil {
+		log.Printf("config for server '%s' is corrupt: %v", srvName, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if newcfg.CoreSettings.ServerPort != currCfg.CoreSettings.ServerPort {
+		http.Error(w, "server_port for new config must match current", http.StatusBadRequest)
+		return
+	}
+	if newcfg.CoreSettings.WorldName != currCfg.CoreSettings.WorldName {
+		http.Error(w, "cannot change world name in new config", http.StatusBadRequest)
+		return
+	}
+
+	b, err := json.Marshal(newcfg)
+	if err != nil {
+		log.Printf("failed to marshal new config for server '%s' into bytes: %v", srvName, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if err = c.Store.UpdateServerConfig(r.Context(), srvName, string(b)); err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("could not update config for server '%s', does not exist", srvName), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to updated config for server '%s': %v", srvName, err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	if c.Poke != nil {
+		c.Poke()
+	}
+
+	respondWithJson(w, http.StatusOK, messageJson{Message: fmt.Sprintf("config for server '%s' successfully updated", srvName)})
+}
