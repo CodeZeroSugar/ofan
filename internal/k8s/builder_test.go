@@ -19,7 +19,8 @@ func TestBuildDeployment(t *testing.T) {
 
 	name := mgr.opts.Name
 	labels := serverLabels(name)
-	dep := mgr.BuildDeployment()
+	dep, err := mgr.BuildDeployment()
+	require.NoError(t, err)
 	assert.Equal(t, "alpha", dep.Name)
 	assert.Equal(t, "ofan-test", dep.Namespace)
 	assert.Equal(t, int32(2), *dep.Spec.Replicas)

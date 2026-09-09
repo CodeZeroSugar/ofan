@@ -71,7 +71,10 @@ func (m *ServerManager) CreateAll(ctx context.Context) error {
 		}
 	}
 
-	deployment := m.BuildDeployment()
+	deployment, err := m.BuildDeployment()
+	if err != nil {
+		return fmt.Errorf("failed to build deployment for server '%s': %w", m.opts.Name, err)
+	}
 	_, err = m.client.AppsV1().Deployments(ns).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create deployment: %w", err)
@@ -167,6 +170,16 @@ func (m *ServerManager) ApplyConfig(ctx context.Context, hash string) error {
 	}
 
 	dep, err := m.client.AppsV1().Deployments(m.opts.Namespace).Get(ctx, m.opts.Name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("could not find deployment for server '%s' to update: %w", m.opts.Name, err)
+		}
+		return fmt.Errorf("failed to update deployment for server '%s': %w", m.opts.Name, err)
+	}
+
+	if dep.Spec.Template.Annotations == nil {
+		dep.Spec.Template.Annotations = make(map[string]string, 0)
+	}
 	dep.Spec.Template.Annotations[AnnotationConfigHash] = hash
 
 	_, err = m.client.AppsV1().Deployments(m.opts.Namespace).Update(ctx, dep, metav1.UpdateOptions{})
