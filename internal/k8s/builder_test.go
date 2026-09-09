@@ -18,7 +18,7 @@ func TestBuildDeployment(t *testing.T) {
 		Replicas:  int32(2),
 	})
 
-	h, err := hashCfg(mgr.opts.Config)
+	h, err := HashCfg(mgr.opts.Config)
 	require.NoError(t, err)
 
 	name := mgr.opts.Name

@@ -10,6 +10,7 @@ import (
 
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -103,11 +104,16 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 	opts.Namespace = c.namespace
 	mgr := k8s.NewServerManager(c.clientset, opts)
 
+	h, err := k8s.HashCfg(opts.Config)
+	if err != nil {
+		return err
+	}
+
 	switch row.DesiredState {
 	case "running":
-		return c.stateActions(ctx, mgr, row, opts.Replicas)
+		return c.stateActions(ctx, mgr, row, opts.Replicas, h)
 	case "stopped":
-		return c.stateActions(ctx, mgr, row, 0)
+		return c.stateActions(ctx, mgr, row, 0, h)
 	case "deleting":
 		if err := mgr.DeleteAll(ctx, row.PurgeStorage); err != nil {
 			return err
@@ -117,7 +123,7 @@ func (c *Controller) convergeRow(ctx context.Context, row db.ServerRecord) error
 	return nil
 }
 
-func (c *Controller) stateActions(ctx context.Context, mgr *k8s.ServerManager, row db.ServerRecord, targetReplicas int32) error {
+func (c *Controller) stateActions(ctx context.Context, mgr *k8s.ServerManager, row db.ServerRecord, targetReplicas int32, newHash string) error {
 	if row.ConsecutiveFailures > 0 && row.ConsecutiveFailures%5 == 0 {
 		if err := mgr.RecreateAll(ctx, recreatePollInterval); err != nil {
 			return err
@@ -130,6 +136,26 @@ func (c *Controller) stateActions(ctx context.Context, mgr *k8s.ServerManager, r
 	if err := mgr.CreateAll(ctx); err != nil {
 		return err
 	}
+
+	dep, err := c.clientset.AppsV1().Deployments(c.namespace).Get(ctx, row.Name, v1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	liveHash, ok := dep.Spec.Template.Annotations[k8s.AnnotationConfigHash]
+	if ok {
+		if liveHash != newHash {
+			if err = mgr.ApplyConfig(ctx, newHash); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err = mgr.ApplyConfig(ctx, newHash); err != nil {
+			return err
+		}
+	}
+
 	if err := c.ensureReplicas(ctx, row.Name, targetReplicas); err != nil {
 		return err
 	}

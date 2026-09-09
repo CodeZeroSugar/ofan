@@ -124,7 +124,7 @@ func TestApplyConfig(t *testing.T) {
 
 	mgr.opts.Config.CoreSettings.ServerPublic = true
 	mgr.opts.Config.CoreSettings.ServerPass = "newsecretpass"
-	h, err := hashCfg(mgr.opts.Config)
+	h, err := HashCfg(mgr.opts.Config)
 	require.NoError(t, err)
 
 	require.NoError(t, mgr.ApplyConfig(ctx, h))

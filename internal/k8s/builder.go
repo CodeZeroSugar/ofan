@@ -15,7 +15,7 @@ import (
 
 const PVC_STORAGE_AMOUNT = "10Gi"
 
-func hashCfg(vCfg ValheimConfig) (string, error) {
+func HashCfg(vCfg ValheimConfig) (string, error) {
 	b, err := json.Marshal(vCfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal config struct back to json: %w", err)
@@ -29,7 +29,7 @@ func hashCfg(vCfg ValheimConfig) (string, error) {
 
 func (m *ServerManager) BuildDeployment() (*appsv1.Deployment, error) {
 	labels := serverLabels(m.opts.Name)
-	hash, err := hashCfg(m.opts.Config)
+	hash, err := HashCfg(m.opts.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate config hash for server '%s': %w", m.opts.Name, err)
 	}
