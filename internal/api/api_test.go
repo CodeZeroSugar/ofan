@@ -25,7 +25,7 @@ type apiSuite struct {
 }
 
 func testConfigJSON(name string) string {
-	return fmt.Sprintf(`{"core_settings":{"server_name":%q}}`, name)
+	return fmt.Sprintf(`{"core_settings":{"server_name":%q,"server_port":"2456"}}`, name)
 }
 
 func (s *apiSuite) SetupTest() {
@@ -1104,6 +1104,174 @@ func (s *apiSuite) TestDelete_NonOwner() {
 	mux.ServeHTTP(s.rr, req)
 
 	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
+func testConfigJSONFull(name, world, pass, p, isPublic string) string {
+	return fmt.Sprintf(`{
+  "core_settings": {
+    "server_name": "%s",
+    "world_name": "%s",
+    "server_pass": "%s",
+    "server_port": %s,
+    "server_public": %s 
+  },
+  "access_control": {
+    "admin_list_ids": "12345"
+  },
+  "maintenance": {
+    "update_cron": "0 * * * *",
+    "update_if_idle": true,
+    "restart_cron": "10 5 * * *",
+    "restart_if_idle": true,
+    "backups": true,
+    "backups_if_idle": false,
+    "backups_cron": "5 * * * *",
+    "backups_max_age": 7,
+    "backups_max_count": 10
+  },
+  "mods": {
+    "valheim_plus": false,
+    "bepinex": false
+  },
+  "system_settings": {
+    "time_zone": "Etc/UTC",
+    "puid": 1000,
+    "pgid": 1000
+  }
+}`, name, world, pass, p, isPublic)
+}
+
+func testConfigJSONModsOn(name, world, pass, p, isPublic string) string {
+	return fmt.Sprintf(`{
+  "core_settings": {
+    "server_name": "%s",
+    "world_name": "%s",
+    "server_pass": "%s",
+    "server_port": %s,
+    "server_public": %s 
+  },
+  "access_control": {
+    "admin_list_ids": "12345"
+  },
+  "maintenance": {
+    "update_cron": "0 * * * *",
+    "update_if_idle": true,
+    "restart_cron": "10 5 * * *",
+    "restart_if_idle": true,
+    "backups": true,
+    "backups_if_idle": false,
+    "backups_cron": "5 * * * *",
+    "backups_max_age": 7,
+    "backups_max_count": 10
+  },
+  "mods": {
+    "valheim_plus": true,
+    "bepinex": true 
+  },
+  "system_settings": {
+    "time_zone": "Etc/UTC",
+    "puid": 1000,
+    "pgid": 1000
+  }
+}`, name, world, pass, p, isPublic)
+}
+
+func (s *apiSuite) TestUpdateGameServerConfig() {
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("PUT /api/v1/servers/{server_name}/config", s.cfg.HandlerUpdateGameServerConfig)
+
+	tests := []struct {
+		name           string
+		actor          string
+		srvName        string
+		cfgIn          string
+		expectedStatus int
+	}{
+		{
+			name:           "valid update",
+			actor:          "admin",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONFull("alpha", "alpha-world", "atleast5", "2456", "true"),
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "frozen port",
+			actor:          "admin",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONFull("alpha", "alpha-world", "atleast5", "2459", "false"),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "frozen world",
+			actor:          "admin",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONFull("alpha", "alpha-werld", "atleast5", "2456", "false"),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "short password",
+			actor:          "admin",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONFull("alpha", "alpha-world", "shrt", "2456", "false"),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "both mods",
+			actor:          "admin",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONModsOn("alpha", "alpha-world", "atleast5", "2456", "false"),
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "no row",
+			actor:          "admin",
+			srvName:        "ghost",
+			cfgIn:          testConfigJSONFull("ghost", "ghost-world", "ghostpass", "2456", "false"),
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "non-owner",
+			actor:          "bob",
+			srvName:        "alpha",
+			cfgIn:          testConfigJSONFull("alpha", "alpha-world", "atleast5", "2456", "false"),
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSONFull("alpha", "alpha-world", "atleast5", "2456", "true")))
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "secret123", false))
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.rr = httptest.NewRecorder()
+			switch tt.name {
+			case "valid update":
+				u, err := s.cfg.Store.GetUserByUsername(ctx, tt.actor)
+				s.Require().NoError(err)
+				req := s.reqWithUser(u, "PUT", fmt.Sprintf("/api/v1/servers/%s/config", tt.srvName), tt.cfgIn)
+				mux.ServeHTTP(s.rr, req)
+				s.Assert().Equal(tt.expectedStatus, s.rr.Code)
+
+				srv, err := s.cfg.Store.GetServer(ctx, tt.srvName)
+				s.Require().NoError(err)
+
+				var cfg k8s.ValheimConfig
+				s.Require().NoError(json.Unmarshal([]byte(srv.ConfigJSON), &cfg))
+
+				s.Assert().True(cfg.CoreSettings.ServerPublic)
+			case "frozen port", "frozen world", "short password", "both mods", "no row", "non-owner":
+				u, err := s.cfg.Store.GetUserByUsername(ctx, tt.actor)
+				s.Require().NoError(err)
+				req := s.reqWithUser(u, "PUT", fmt.Sprintf("/api/v1/servers/%s/config", tt.srvName), tt.cfgIn)
+				mux.ServeHTTP(s.rr, req)
+
+				s.Assert().Equal(tt.expectedStatus, s.rr.Code)
+			default:
+				s.T().Fatalf("no test case for '%s'", tt.name)
+			}
+		})
+	}
 }
 
 func (s *apiSuite) TestGetGameServer() {
