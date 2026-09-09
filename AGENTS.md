@@ -97,6 +97,10 @@ these. These are decisions, not suggestions.
 - **NodePort auto-assign** — user-configurable `node_port` removed.
   `BuildService` always emits `nodePort: 0`; `ServerState.NodePort/QueryPort`
   are informer-sourced actuals only.
+- **Frozen config fields** — `ServerPort` and `WorldName` are immutable after
+  creation (PUT rejects changes with 400; change requires delete+recreate).
+  The reconciler never handles port/world drift — frozen values cannot enter
+  the row.
 - **List contract** — `map[string]ServerView` keyed by server name; empty case
   returns `{}`; rowless uptime uses `IsZero()` fallback to registry `CreatedAt`.
 - **Auth model** — role enforced via middleware; ownership enforced in the
@@ -133,8 +137,9 @@ reference the rule numbers in Locked domain rules.
 | 7 | Unhealthy-server escalation ladder | No gate/retry logic re-introduced: `consecutive_failures` only ever resets via success reset, never a hard stop. `failures % 5 == 0` triggers a hard reset (graceful `DeleteAll(storage=false)` → bounded wait ≤150s → fresh `CreateAll`, PVC preserved). `deleting` executes unconditionally; `running`/`stopped` rows with no registry entry proceed to `CreateAll`. |
 | 8 | `Poke` nil-guarded | Every handler calling `c.Poke()` first checks `c.Poke != nil`. |
 | 9 | NodePort auto-assign | `BuildService` still emits `nodePort: 0`; no user-configurable port re-introduced; `NodePort`/`QueryPort` remain informer-sourced actuals. |
-| 10 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. |
-| 11 | Auth = middleware, ownership = handler | New endpoints gate role in middleware and ownership (`srvRec.Owner` vs `userCtx`) in the handler; `rejectSelf` still guards self-targeting ops. |
+| 10 | Frozen config fields | PUT rejects `ServerPort`/`WorldName` changes with 400; no controller path compares or converges port/world values — frozen drift is impossible by construction. |
+| 11 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. |
+| 12 | Auth = middleware, ownership = handler | New endpoints gate role in middleware and ownership (`srvRec.Owner` vs `userCtx`) in the handler; `rejectSelf` still guards self-targeting ops. |
 
 ### Testing philosophy
 
