@@ -1,6 +1,8 @@
 package k8s
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,8 +14,26 @@ import (
 
 const PVC_STORAGE_AMOUNT = "10Gi"
 
+func hashCfg(cfgRaw string) (string, error) {
+	var cfg ValheimConfig
+	if err := json.Unmarshal([]byte(cfgRaw), &cfg); err != nil {
+		return "", fmt.Errorf("failed to unmarshal raw json config into struct: %w", err)
+	}
+
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal config struct back to json: %w", err)
+	}
+
+	h := sha256.New()
+	h.Write(b)
+	
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
 func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 	labels := serverLabels(m.opts.Name)
+	annotations := annotations(hash string)
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
@@ -25,6 +45,7 @@ func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
+			Strategy: appsv1.DeploymentStrategy{Type: "Recreate"},
 			Replicas: &m.opts.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
@@ -32,6 +53,7 @@ func (m *ServerManager) BuildDeployment() *appsv1.Deployment {
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
+					Annotations: annotations 
 				},
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{

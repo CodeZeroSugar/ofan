@@ -145,3 +145,37 @@ PollLoop:
 	}
 	return m.CreateAll(ctx)
 }
+
+func (m *ServerManager) ApplyConfig(ctx context.Context, hash string) error {
+	cm := m.BuildConfigMap()
+	s := m.BuildSecret()
+
+	_, err := m.client.CoreV1().ConfigMaps(m.opts.Namespace).Update(ctx, cm, metav1.UpdateOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("could not find config map for server '%s' to update: %w", m.opts.Name, err)
+		}
+		return fmt.Errorf("failed to update config map for server '%s': %w", m.opts.Name, err)
+	}
+
+	_, err = m.client.CoreV1().Secrets(m.opts.Namespace).Update(ctx, s, metav1.UpdateOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("could not find secret for server '%s' to update: %w", m.opts.Name, err)
+		}
+		return fmt.Errorf("failed to update secret for server '%s': %w", m.opts.Name, err)
+	}
+
+	dep, err := m.client.AppsV1().Deployments(m.opts.Namespace).Get(ctx, m.opts.Name, metav1.GetOptions{})
+	dep.Spec.Template.Annotations[AnnotationConfigHash] = hash
+
+	_, err = m.client.AppsV1().Deployments(m.opts.Namespace).Update(ctx, dep, metav1.UpdateOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("could not find deployment for server '%s' to update: %w", m.opts.Name, err)
+		}
+		return fmt.Errorf("failed to update deployment for server '%s': %w", m.opts.Name, err)
+	}
+
+	return nil
+}
