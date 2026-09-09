@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
@@ -17,6 +18,9 @@ func TestBuildDeployment(t *testing.T) {
 		Replicas:  int32(2),
 	})
 
+	h, err := hashCfg(mgr.opts.Config)
+	require.NoError(t, err)
+
 	name := mgr.opts.Name
 	labels := serverLabels(name)
 	dep, err := mgr.BuildDeployment()
@@ -27,6 +31,8 @@ func TestBuildDeployment(t *testing.T) {
 	assert.Equal(t, labels, dep.Labels)
 	assert.Equal(t, labels, dep.Spec.Selector.MatchLabels)
 	assert.Equal(t, labels, dep.Spec.Template.Labels)
+	assert.Equal(t, appsv1.RecreateDeploymentStrategyType, dep.Spec.Strategy.Type)
+	assert.Equal(t, h, dep.Spec.Template.Annotations[AnnotationConfigHash])
 	for _, c := range dep.Spec.Template.Spec.Containers {
 		assert.Equal(t, "valheim-server", c.Name)
 		assert.Equal(t, "ghcr.io/lloesche/valheim-server:latest", c.Image)
