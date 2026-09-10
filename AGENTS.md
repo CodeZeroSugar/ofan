@@ -218,6 +218,10 @@ user's to perform.
   and the smoke script must change the password before hitting server endpoints.
 - Dev DBs are throwaway on schema change — delete `data/*.db` and let migrate
   rebuild.
+- Fake-clientset action assertions must compare `GetVerb()`, never type-assert
+  to `k8stesting.UpdateAction` — `CreateAction` satisfies that interface too
+  (same method set), so the assertion matches creates as well as updates and
+  every `CreateAll` pass trips it.
 
 ## Roadmap — future (high level)
 
@@ -225,7 +229,7 @@ user's to perform.
   - `terminationGracePeriodSeconds: 120` on the pod spec in `BuildDeployment()` — constant, matches the lloesche image's `--stop-timeout 120`. The container already saves the world on graceful shutdown (SIGTERM/SIGINT → `kill -INT` → game saves). This single constant prevents k8s from SIGKILLing a saving pod. No code beyond this constant handles the save.
   - `DrainOnShutdown` toggle (`OFAN_DRAIN_ON_SHUTDOWN`, default `false`): on `ctx.Done()`, before `srv.Shutdown`, a controller method scales all `desired_state='running'` deployments to 0 replicas. Does NOT mutate `desired_state` — startup reconcile restores intent. Timeout: 150s (120 grace + 30 headroom). Only affects `running` — `stopped` is already 0, `deleting` continues normal teardown. Tradeoff: every Go restart stops all servers (players kicked). Dev-friendly default: off.
   - **In-game notifications**: infeasible in vanilla Valheim (no RCON, no server console, no broadcast). Discord/webhook out-of-game notifications deferred to a future pass.
-- **Config updates on running servers**: `PUT /api/v1/servers/{name}/config` → validate → update row's `config_json` → poke → reconciler diffs stored vs live and applies (rollout via annotation bump). **Ports frozen** (auto-assigned post-create; change = delete+recreate). Fold in `SERVER_PASS` ≥5 char rule.
+- **Config updates on running servers** ✅ COMPLETE — `PUT /api/v1/servers/{name}/config` → validate → update row's `config_json` → poke → reconciler diffs row hash vs live `ofan.io/config-hash` annotation and applies (`ApplyConfig`, same pass). **Ports + world frozen** (change = delete+recreate; PUT rejects with 400). `SERVER_PASS` ≥5 enforced. Notification stub + Discord/email still deferred.
 - **Web GUI**: login → server list (poll; shows status/health/desired) → create form (config editor) → detail with live config editing + delete. SPA embedded via existing `web/embed.go`.
 - **Deploy anywhere**: Dockerfile, k8s manifests (Deployment + Service + ClusterRole + PVC for sqlite + secret for session secret/admin), `scripts/setup.sh` (k3s local or existing cluster).
 

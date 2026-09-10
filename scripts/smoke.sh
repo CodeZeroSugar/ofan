@@ -45,6 +45,19 @@ wait_kubectl_gone() { # $1 = kind, $2 = name, $3 = timeout seconds
   exit 1
 }
 
+wait_annotation_changed() { # $1 = deployment, $2 = old hash, $3 = timeout seconds; sets NEW_HASH
+  local deadline=$(( $(date +%s) + $3 ))
+  while [[ $(date +%s) -lt $deadline ]]; do
+    NEW_HASH=$(kubectl -n "$NS" get deployment "$1" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
+    if [[ -n "$NEW_HASH" && "$NEW_HASH" != "$2" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "FAIL: annotation for '$1' never changed within ${3}s" >&2
+  exit 1
+}
+
 root_login() {
   local body code resp token
 
@@ -147,6 +160,30 @@ echo ">> server started (node_port $PORT_AFTER)"
 # 7. node port preserved through stop/start
 assert_eq "node_port preserved through stop/start" "$PORT_BEFORE" "$PORT_AFTER"
 echo ">> node_port preserved through stop/start"
+
+# 7.5 update server config (mutable fields only - port 2456 + world Dedicated frozen)
+OLD_HASH=$(kubectl -n "$NS" get deployment "$SERVER_NAME" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
+BODY=$(jq -n --arg n "$SERVER_NAME" '{
+  core_settings: {server_name: $n, world_name: "Dedicated", server_pass: "updatedpass", server_port: 2456, server_public: true},
+  access_control: {},
+  maintenance: {update_cron: "*/15 * * * *", update_if_idle: true, restart_cron: "10 5 * * *", restart_if_idle: true, backups: true, backups_if_idle: true, backups_cron: "5 * * * *", backups_max_age: 3, backups_max_count: 0},
+  mods: {valheim_plus: false, bepinex: false},
+  system_settings: {time_zone: "Etc/UTC", puid: 0, pgid: 0}
+}')
+api PUT /api/v1/servers/$SERVER_NAME/config "$TOKEN" "$BODY"
+assert_code "$CODE" 200 "update server config"
+wait_annotation_changed "$SERVER_NAME" "$OLD_HASH" 60
+echo ">> server config rolled out (annotation bumped)"
+PUB=$(kubectl -n "$NS" get configmap "$SERVER_NAME-configmap" -o "jsonpath={.data.SERVER_PUBLIC}")
+assert_eq "SERVER_PUBLIC updated in ConfigMap" "true" "$PUB"
+
+# 7.6 frozen config rejected (port change must 400, row untouched)
+FROZEN_BODY=$(echo "$BODY" | jq '.core_settings.server_port = 2457')
+api PUT /api/v1/servers/$SERVER_NAME/config "$TOKEN" "$FROZEN_BODY"
+assert_code "$CODE" 400 "frozen server_port rejected"
+CUR_HASH=$(kubectl -n "$NS" get deployment "$SERVER_NAME" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
+assert_eq "annotation unchanged after rejected update" "$NEW_HASH" "$CUR_HASH"
+echo ">> frozen server_port correctly rejected"
 
 # 8. delete server (preserve PVC)
 BODY='{"delete_storage": false}'
