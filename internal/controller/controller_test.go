@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -577,6 +578,16 @@ func hasDeleteAction(client *fake.Clientset, resource string) bool {
 	return false
 }
 
+func hasUpdateAction(client *fake.Clientset, resource string) bool {
+	for _, action := range client.Actions() {
+		up, ok := action.(k8stesting.UpdateAction)
+		if ok && up.GetResource().Resource == resource && action.GetVerb() == "update" {
+			return true
+		}
+	}
+	return false
+}
+
 func TestHardReset_At5(t *testing.T) {
 	ctx := context.Background()
 	s, client, reg, c := newTestController(t)
@@ -693,4 +704,196 @@ func TestRunning_RegistryMissing_Reprovisions(t *testing.T) {
 	_, err := s.GetServer(ctx, "alpha")
 	require.NoError(t, err)
 	assertResourcesExist(t, client, "alpha")
+}
+
+func TestError_IncrementsFailures(t *testing.T) {
+	ctx := context.Background()
+	s, client, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", true)
+
+	client.PrependReactor("update", "configmaps", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, errors.New("faked update error")
+	})
+
+	rawCfg := testConfigJSONFull("alpha")
+	var cfgB k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(rawCfg), &cfgB))
+
+	opts := k8s.NewServerOpts("alpha", "secret123", &cfgB)
+	opts.Namespace = testNS
+	mgr := k8s.NewServerManager(client, opts)
+	require.NoError(t, mgr.CreateAll(ctx))
+
+	require.NoError(t, c.Reconcile(ctx))
+	row, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, row.ConsecutiveFailures)
+}
+
+func TestRunning_InSyncNoOp(t *testing.T) {
+	ctx := context.Background()
+	s, client, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", true)
+	seedDeployment(t, client, "alpha", 1)
+
+	row, err := s.GetServer(ctx, "alpha")
+	var cfg k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfg))
+	hash, err := k8s.HashCfg(cfg)
+	require.NoError(t, err)
+
+	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+	require.NoError(t, err)
+	dep.Spec.Template.Annotations = map[string]string{k8s.AnnotationConfigHash: hash}
+	_, err = client.AppsV1().Deployments(c.namespace).Update(ctx, dep, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	client.ClearActions()
+	require.NoError(t, c.Reconcile(ctx))
+
+	assert.False(t, hasUpdateAction(client, "deployments"))
+
+	row, err = s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	var cfgAfter k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfgAfter))
+	hashAfter, err := k8s.HashCfg(cfgAfter)
+	require.NoError(t, err)
+	assert.Equal(t, hash, hashAfter)
+}
+
+func TestRunning_MissingDeploymentSkipsApply(t *testing.T) {
+	ctx := context.Background()
+	s, client, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", true)
+	row, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	var cfgA k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfgA))
+	cfgAHash, err := k8s.HashCfg(cfgA)
+	require.NoError(t, err)
+
+	require.NoError(t, c.Reconcile(ctx))
+	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+
+	assert.Equal(t, cfgAHash, dep.Spec.Template.Annotations[k8s.AnnotationConfigHash])
+}
+
+func TestStopped_AppliesSilently(t *testing.T) {
+	ctx := context.Background()
+	s, client, reg, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "stopped", true)
+	seedRegistry(t, reg, "alpha", 0)
+	row, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	var cfgA k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfgA))
+	cfgAHash, err := k8s.HashCfg(cfgA)
+	require.NoError(t, err)
+
+	rawCfg := testConfigJSONFull("alpha")
+	var cfgB k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(rawCfg), &cfgB))
+
+	opts := k8s.NewServerOpts("alpha", "secret123", &cfgB)
+	opts.Namespace = testNS
+	opts.Replicas = 0
+	mgr := k8s.NewServerManager(client, opts)
+	require.NoError(t, mgr.CreateAll(ctx))
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	cm, err := client.CoreV1().ConfigMaps(c.namespace).Get(ctx, "alpha-configmap", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	data := cm.Data
+	assert.Equal(t, cfgA.AccessControl.AdminListIDs, data["ADMINLIST_IDS"])
+	assert.Equal(t, fmt.Sprintf("%t", cfgA.CoreSettings.ServerPublic), data["SERVER_PUBLIC"])
+
+	secret, err := client.CoreV1().Secrets(c.namespace).Get(ctx, "alpha-secret", metav1.GetOptions{})
+	assert.Equal(t, cfgA.CoreSettings.ServerPass, secret.StringData["SERVER_PASS"])
+
+	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, cfgAHash, dep.Spec.Template.Annotations[k8s.AnnotationConfigHash])
+	ptrZero := int32(0)
+	assert.Equal(t, &ptrZero, dep.Spec.Replicas)
+}
+
+func TestRunning_StaleAnnotation(t *testing.T) {
+	ctx := context.Background()
+	s, client, _, c := newTestController(t)
+
+	seedRow(t, s, "alpha", "running", true)
+	row, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
+	var cfgA k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfgA))
+	cfgAHash, err := k8s.HashCfg(cfgA)
+	require.NoError(t, err)
+
+	rawCfg := testConfigJSONFull("alpha")
+	var cfgB k8s.ValheimConfig
+	require.NoError(t, json.Unmarshal([]byte(rawCfg), &cfgB))
+
+	opts := k8s.NewServerOpts("alpha", "secret123", &cfgB)
+	opts.Namespace = testNS
+	mgr := k8s.NewServerManager(client, opts)
+	require.NoError(t, mgr.CreateAll(ctx))
+
+	require.NoError(t, c.Reconcile(ctx))
+
+	cm, err := client.CoreV1().ConfigMaps(c.namespace).Get(ctx, "alpha-configmap", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	data := cm.Data
+	assert.Equal(t, cfgA.AccessControl.AdminListIDs, data["ADMINLIST_IDS"])
+	assert.Equal(t, fmt.Sprintf("%t", cfgA.CoreSettings.ServerPublic), data["SERVER_PUBLIC"])
+
+	secret, err := client.CoreV1().Secrets(c.namespace).Get(ctx, "alpha-secret", metav1.GetOptions{})
+	assert.Equal(t, cfgA.CoreSettings.ServerPass, secret.StringData["SERVER_PASS"])
+
+	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, cfgAHash, dep.Spec.Template.Annotations[k8s.AnnotationConfigHash])
+}
+
+func testConfigJSONFull(name string) string {
+	return fmt.Sprintf(`{
+  "core_settings": {
+    "server_name": "%s",
+    "world_name": "Dedicated",
+    "server_pass": "updatedpass",
+    "server_port": 2456,
+    "server_public": true
+  },
+  "access_control": {
+    "admin_list_ids": "12345"
+  },
+  "maintenance": {
+    "update_cron": "0 * * * *",
+    "update_if_idle": true,
+    "restart_cron": "10 5 * * *",
+    "restart_if_idle": true,
+    "backups": true,
+    "backups_if_idle": false,
+    "backups_cron": "5 * * * *",
+    "backups_max_age": 7,
+    "backups_max_count": 10
+  },
+  "mods": {
+    "valheim_plus": false,
+    "bepinex": false
+  },
+  "system_settings": {
+    "time_zone": "Etc/UTC",
+    "puid": 1000,
+    "pgid": 1000
+  }
+}`, name)
 }
