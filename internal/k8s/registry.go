@@ -9,15 +9,18 @@ import (
 )
 
 type ServerState struct {
-	Name      string    `json:"name"`
-	Namespace string    `json:"namespace"`
-	NodePort  int32     `json:"node_port"`
-	QueryPort int32     `json:"query_port"`
-	Status    string    `json:"status"`
-	Replicas  int32     `json:"replicas"`
-	Ready     int32     `json:"ready_replicas"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Name         string    `json:"name"`
+	Namespace    string    `json:"namespace"`
+	NodePort     int32     `json:"node_port"`
+	QueryPort    int32     `json:"query_port"`
+	Status       string    `json:"status"`
+	Replicas     int32     `json:"replicas"`
+	Ready        int32     `json:"ready_replicas"`
+	PodWaiting   string    `json:"pod_waiting"`
+	RestartCount int32     `json:"restart_count"`
+	NodeIP       string    `json:"node_ip"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type ServerRegistry struct {

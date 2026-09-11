@@ -1,8 +1,8 @@
 package api
 
-func deriveHealth(status, desired string, failures int) string {
+func deriveHealth(status, desired, podWaiting string, failures int) string {
 	switch {
-	case failures >= 5:
+	case failures >= 5 || podWaiting == "CrashLoopBackOff":
 		return "failed"
 	case desired == "deleting" || desired == status:
 		return "healthy"

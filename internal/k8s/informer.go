@@ -23,6 +23,7 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 
 	deployInformer := factory.Apps().V1().Deployments()
 	serviceInformer := factory.Core().V1().Services()
+	podInformer := factory.Core().V1().Pods()
 
 	mgr := &InformerManager{
 		Registry: NewServerRegistry(),
@@ -34,7 +35,7 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 		DeleteFunc: mgr.deleteDeployment,
 	})
 	if err != nil {
-		log.Printf("error occurered while registing deployment event handlers: %v", err)
+		log.Printf("error occurred while registing deployment event handlers: %v", err)
 	}
 	_, err = serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { mgr.upsertService(obj.(*corev1.Service)) },
@@ -42,7 +43,15 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 		DeleteFunc: mgr.deleteService,
 	})
 	if err != nil {
-		log.Printf("error occurered while registing service event handlers: %v", err)
+		log.Printf("error occurred while registing service event handlers: %v", err)
+	}
+	_, err = podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj interface{}) { mgr.upsertPod(obj.(*corev1.Pod)) },
+		UpdateFunc: func(_, newObj interface{}) { mgr.upsertPod(newObj.(*corev1.Pod)) },
+		DeleteFunc: mgr.deletePod,
+	})
+	if err != nil {
+		log.Printf("error occurred while registering pod event handlers: %v", err)
 	}
 
 	factory.Start(ctx.Done())
@@ -130,4 +139,57 @@ func (m *InformerManager) upsertService(obj *corev1.Service) {
 		s.NodePort = gp
 		s.QueryPort = qp
 	})
+}
+
+func (m *InformerManager) upsertPod(obj *corev1.Pod) {
+	if obj.Labels[LabelManagedBy] != ManagedByOfan {
+		return
+	}
+	name, ok := obj.Labels[LabelServerName]
+	if !ok {
+		return
+	}
+	m.Registry.UpdateIfExists(name, func(s *ServerState) {
+		s.NodeIP = obj.Status.HostIP
+
+		cs := obj.Status.ContainerStatuses
+		if len(cs) > 0 {
+			s.RestartCount = cs[0].RestartCount
+			if cs[0].State.Waiting != nil {
+				s.PodWaiting = cs[0].State.Waiting.Reason
+			} else {
+				s.PodWaiting = ""
+			}
+		}
+	})
+}
+
+func (m *InformerManager) deletePod(obj interface{}) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		tomb, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return
+		}
+		pod, ok = tomb.Obj.(*corev1.Pod)
+		if !ok {
+			return
+		}
+	}
+	if pod.Labels[LabelManagedBy] != ManagedByOfan {
+		return
+	}
+	name, ok := pod.Labels[LabelServerName]
+	if !ok {
+		return
+	}
+
+	if ok = m.Registry.UpdateIfExists(name, func(s *ServerState) {
+		s.NodeIP = ""
+		s.PodWaiting = ""
+		s.RestartCount = 0
+	}); !ok {
+		return
+	}
+	log.Printf("'%s' deleted, pod values zeroed in registry", pod.Name)
 }

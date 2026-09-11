@@ -201,11 +201,11 @@ func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request)
 	state, ok := c.InformerManager.Registry.Get(name)
 	if !ok {
 		view.ServerState = &k8s.ServerState{}
-		view.Health = deriveHealth("", s.DesiredState, s.ConsecutiveFailures)
+		view.Health = deriveHealth("", s.DesiredState, view.PodWaiting, s.ConsecutiveFailures)
 		view.Uptime = time.Since(s.CreatedAt)
 	} else {
 		view.ServerState = state
-		view.Health = deriveHealth(state.Status, s.DesiredState, s.ConsecutiveFailures)
+		view.Health = deriveHealth(state.Status, s.DesiredState, view.PodWaiting, s.ConsecutiveFailures)
 		created := s.CreatedAt
 		if created.IsZero() {
 			created = state.CreatedAt
@@ -255,7 +255,7 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 		viewMap[s.Name] = ServerView{
 			ServerState:         s,
 			DesiredState:        rec.DesiredState,
-			Health:              deriveHealth(s.Status, rec.DesiredState, rec.ConsecutiveFailures),
+			Health:              deriveHealth(s.Status, rec.DesiredState, s.PodWaiting, rec.ConsecutiveFailures),
 			ConsecutiveFailures: rec.ConsecutiveFailures,
 			Uptime:              time.Since(created),
 			Owner:               rec.Owner,
