@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -25,6 +26,7 @@ type ApiConfig struct {
 	Store           *db.Store
 	Auth            *auth.Manager
 	Poke            func()
+	Templates       *template.Template
 }
 
 type ServerView struct {

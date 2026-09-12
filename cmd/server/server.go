@@ -24,6 +24,12 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	if err != nil {
 		return nil, err
 	}
+	t, err := web.ParseTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse web templates: %v", err)
+	}
+
+	apiCfg.Templates = t
 
 	mux := http.NewServeMux()
 

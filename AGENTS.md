@@ -235,7 +235,6 @@ user's to perform.
 
 ## Backlog
 
-- Pod-lister refinement (crashloops, node IPs for game clients) — re-add pod informer + `PodLister` when this lands.
 - Live metrics/player counts for the web dashboard.
 - `handlerReadiness` — actually report informer sync state instead of always 200.
 - `ServerOpts.StorageSize` dead field — either wire into the builder or remove.
