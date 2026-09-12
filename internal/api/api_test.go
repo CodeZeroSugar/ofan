@@ -1394,6 +1394,7 @@ func (s *apiSuite) TestDeriveHealth() {
 		name     string
 		status   string
 		desired  string
+		pod      string
 		failures int
 		expected string
 	}{
@@ -1401,6 +1402,7 @@ func (s *apiSuite) TestDeriveHealth() {
 			name:     "healthy",
 			status:   "provisioning",
 			desired:  "running",
+			pod:      "",
 			failures: 0,
 			expected: "healthy",
 		},
@@ -1408,6 +1410,7 @@ func (s *apiSuite) TestDeriveHealth() {
 			name:     "failed",
 			status:   "provisioning",
 			desired:  "running",
+			pod:      "",
 			failures: 5,
 			expected: "failed",
 		},
@@ -1415,6 +1418,7 @@ func (s *apiSuite) TestDeriveHealth() {
 			name:     "healthy deleting",
 			status:   "deleting",
 			desired:  "deleting",
+			pod:      "",
 			failures: 0,
 			expected: "healthy",
 		},
@@ -1422,13 +1426,24 @@ func (s *apiSuite) TestDeriveHealth() {
 			name:     "degraded",
 			status:   "unknown",
 			desired:  "sdfasdfad",
+			pod:      "",
 			failures: 0,
 			expected: "degraded",
+		},
+		{
+			name:     "crash loop",
+			status:   "running",
+			desired:  "running",
+			pod:      "CrashLoopBackOff",
+			failures: 0,
+			expected: "failed",
 		},
 	}
 
 	for _, tc := range tests {
-		s.Assert().Equal(tc.expected, deriveHealth(tc.status, tc.desired, tc.failures))
+		s.Run(tc.name, func() {
+			s.Assert().Equal(tc.expected, deriveHealth(tc.status, tc.desired, tc.pod, tc.failures))
+		})
 	}
 }
 

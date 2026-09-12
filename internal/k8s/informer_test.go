@@ -211,6 +211,222 @@ func TestUpsertSerivce(t *testing.T) {
 	}
 }
 
+func TestUpsertPodManaged(t *testing.T) {
+	tests := []struct {
+		name    string
+		managed bool
+		seed    bool
+		obj     *corev1.Pod
+	}{
+		{
+			name:    "upsert managed pod",
+			managed: true,
+			seed:    true,
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: serverLabels("alpha"),
+				},
+				Status: corev1.PodStatus{
+					HostIP: "192.168.0.2",
+					ContainerStatuses: []corev1.ContainerStatus{
+						{
+							Name:         "alpha",
+							RestartCount: 7,
+							State: corev1.ContainerState{
+								Waiting: &corev1.ContainerStateWaiting{
+									Reason: "CrashLoopBackOff",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "upsert pod foreign",
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: "not-ofan"},
+				},
+			},
+		},
+		{
+			name: "empty statuses",
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: serverLabels("alpha"),
+				},
+				Status: corev1.PodStatus{
+					HostIP: "192.168.0.2",
+					ContainerStatuses: []corev1.ContainerStatus{
+						{
+							Name: "alpha",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr := InformerManager{Registry: NewServerRegistry()}
+			switch tt.name {
+			case "upsert managed pod":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.upsertPod(tt.obj)
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "192.168.0.2", srv.NodeIP)
+				assert.Equal(t, int32(7), srv.RestartCount)
+				assert.Equal(t, "CrashLoopBackOff", srv.PodWaiting)
+			case "upsert pod foreign":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.upsertPod(tt.obj)
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "", srv.NodeIP)
+				assert.Equal(t, int32(0), srv.RestartCount)
+				assert.Equal(t, "", srv.PodWaiting)
+			case "empty statuses":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.upsertPod(tt.obj)
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "192.168.0.2", srv.NodeIP)
+				assert.Equal(t, int32(0), srv.RestartCount)
+				assert.Equal(t, "", srv.PodWaiting)
+			default:
+				t.Fatalf("case '%s' not recognized", tt.name)
+			}
+		})
+	}
+}
+
+func TestDeletePod(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  interface{}
+	}{
+		{
+			name: "managed delete resets",
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: serverLabels("alpha"),
+				},
+				Status: corev1.PodStatus{
+					HostIP: "192.168.0.2",
+					ContainerStatuses: []corev1.ContainerStatus{
+						{
+							Name:         "alpha",
+							RestartCount: 7,
+							State: corev1.ContainerState{
+								Waiting: &corev1.ContainerStateWaiting{
+									Reason: "CrashLoopBackOff",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "foreign delete ignore",
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{LabelManagedBy: "not-ofan"},
+				},
+				Status: corev1.PodStatus{
+					HostIP: "192.168.0.2",
+					ContainerStatuses: []corev1.ContainerStatus{
+						{
+							Name:         "alpha",
+							RestartCount: 7,
+							State: corev1.ContainerState{
+								Waiting: &corev1.ContainerStateWaiting{
+									Reason: "CrashLoopBackOff",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "tombstone wrapped pod",
+			obj: cache.DeletedFinalStateUnknown{
+				Key: "default/alpha",
+				Obj: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "alpha",
+						Labels: map[string]string{
+							LabelManagedBy:  ManagedByOfan,
+							LabelServerName: "alpha",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "tombstone wrong type",
+			obj: cache.DeletedFinalStateUnknown{
+				Key: "default/alpha",
+				Obj: &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "alpha",
+						Labels: map[string]string{
+							LabelManagedBy:  ManagedByOfan,
+							LabelServerName: "alpha",
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mgr := InformerManager{Registry: NewServerRegistry()}
+			switch tt.name {
+			case "managed delete resets":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.Registry.servers["alpha"].PodWaiting = "CrashLoopBackOff"
+				mgr.Registry.servers["alpha"].RestartCount = 5
+				mgr.Registry.servers["alpha"].NodeIP = "192.168.0.2"
+				mgr.deletePod(tt.obj)
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "", srv.NodeIP)
+				assert.Equal(t, int32(0), srv.RestartCount)
+				assert.Equal(t, "", srv.PodWaiting)
+			case "foreign delete ignore":
+				mgr.deletePod(tt.obj)
+				assert.Equal(t, "192.168.0.2", tt.obj.(*corev1.Pod).Status.HostIP)
+				assert.Equal(t, int32(7), tt.obj.(*corev1.Pod).Status.ContainerStatuses[0].RestartCount)
+				assert.Equal(t, "CrashLoopBackOff", tt.obj.(*corev1.Pod).Status.ContainerStatuses[0].State.Waiting.Reason)
+				assert.True(t, len(mgr.Registry.servers) == 0)
+			case "tombstone wrapped pod":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.Registry.servers["alpha"].PodWaiting = "CrashLoopBackOff"
+				mgr.Registry.servers["alpha"].RestartCount = 5
+				mgr.Registry.servers["alpha"].NodeIP = "192.168.0.2"
+				assert.NotPanics(t, func() { mgr.deletePod(tt.obj) })
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "", srv.NodeIP)
+				assert.Equal(t, int32(0), srv.RestartCount)
+				assert.Equal(t, "", srv.PodWaiting)
+			case "tombstone wrong type":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.Registry.servers["alpha"].PodWaiting = "CrashLoopBackOff"
+				mgr.Registry.servers["alpha"].RestartCount = 5
+				mgr.Registry.servers["alpha"].NodeIP = "192.168.0.2"
+				assert.NotPanics(t, func() { mgr.deletePod(tt.obj) })
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "192.168.0.2", srv.NodeIP)
+				assert.Equal(t, int32(5), srv.RestartCount)
+				assert.Equal(t, "CrashLoopBackOff", srv.PodWaiting)
+			default:
+				t.Fatalf("case '%s' not recognized", tt.name)
+			}
+		})
+	}
+}
+
 func TestDeleteService(t *testing.T) {
 	tests := []struct {
 		name              string
