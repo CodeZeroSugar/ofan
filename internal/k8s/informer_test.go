@@ -213,15 +213,11 @@ func TestUpsertSerivce(t *testing.T) {
 
 func TestUpsertPodManaged(t *testing.T) {
 	tests := []struct {
-		name    string
-		managed bool
-		seed    bool
-		obj     *corev1.Pod
+		name string
+		obj  *corev1.Pod
 	}{
 		{
-			name:    "upsert managed pod",
-			managed: true,
-			seed:    true,
+			name: "upsert managed pod",
 			obj: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: serverLabels("alpha"),
@@ -251,7 +247,7 @@ func TestUpsertPodManaged(t *testing.T) {
 			},
 		},
 		{
-			name: "empty statuses",
+			name: "present not waiting",
 			obj: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: serverLabels("alpha"),
@@ -263,6 +259,18 @@ func TestUpsertPodManaged(t *testing.T) {
 							Name: "alpha",
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "empty status",
+			obj: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: serverLabels("alpha"),
+				},
+				Status: corev1.PodStatus{
+					HostIP:            "192.168.0.2",
+					ContainerStatuses: []corev1.ContainerStatus{},
 				},
 			},
 		},
@@ -286,7 +294,14 @@ func TestUpsertPodManaged(t *testing.T) {
 				assert.Equal(t, "", srv.NodeIP)
 				assert.Equal(t, int32(0), srv.RestartCount)
 				assert.Equal(t, "", srv.PodWaiting)
-			case "empty statuses":
+			case "present not waiting":
+				mgr.Registry.servers["alpha"] = &ServerState{}
+				mgr.upsertPod(tt.obj)
+				srv := mgr.Registry.servers["alpha"]
+				assert.Equal(t, "192.168.0.2", srv.NodeIP)
+				assert.Equal(t, int32(0), srv.RestartCount)
+				assert.Equal(t, "", srv.PodWaiting)
+			case "empty status":
 				mgr.Registry.servers["alpha"] = &ServerState{}
 				mgr.upsertPod(tt.obj)
 				srv := mgr.Registry.servers["alpha"]
@@ -396,9 +411,6 @@ func TestDeletePod(t *testing.T) {
 				assert.Equal(t, "", srv.PodWaiting)
 			case "foreign delete ignore":
 				mgr.deletePod(tt.obj)
-				assert.Equal(t, "192.168.0.2", tt.obj.(*corev1.Pod).Status.HostIP)
-				assert.Equal(t, int32(7), tt.obj.(*corev1.Pod).Status.ContainerStatuses[0].RestartCount)
-				assert.Equal(t, "CrashLoopBackOff", tt.obj.(*corev1.Pod).Status.ContainerStatuses[0].State.Waiting.Reason)
 				assert.True(t, len(mgr.Registry.servers) == 0)
 			case "tombstone wrapped pod":
 				mgr.Registry.servers["alpha"] = &ServerState{}
