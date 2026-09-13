@@ -99,7 +99,11 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		ServerOptions: opts,
 	}
 
-	respondWithJson(w, http.StatusAccepted, data)
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusAccepted, c.Templates, "create", data)
+	} else {
+		respondWithJson(w, http.StatusAccepted, data)
+	}
 }
 
 func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +175,11 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 		Status:        "deleting",
 		StoragePurged: req.DeleteStorage,
 	}
-	respondWithJson(w, http.StatusAccepted, resp)
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusAccepted, c.Templates, "delete", resp)
+	} else {
+		respondWithJson(w, http.StatusAccepted, resp)
+	}
 }
 
 func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +206,7 @@ func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	view := &ServerView{}
+	view := ServerView{}
 
 	state, ok := c.InformerManager.Registry.Get(name)
 	if !ok {
@@ -219,7 +227,15 @@ func (c *ApiConfig) HandlerGetGameServer(w http.ResponseWriter, r *http.Request)
 	view.ConsecutiveFailures = s.ConsecutiveFailures
 	view.Owner = s.Owner
 
-	respondWithJson(w, http.StatusOK, view)
+	viewMap := map[string]ServerView{
+		view.Name: view,
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "view", viewMap)
+	} else {
+		respondWithJson(w, http.StatusOK, view)
+	}
 }
 
 func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Request) {
@@ -274,7 +290,11 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 			delete(viewMap, n)
 		}
 	}
-	respondWithJson(w, http.StatusOK, viewMap)
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "view", viewMap)
+	} else {
+		respondWithJson(w, http.StatusOK, viewMap)
+	}
 }
 
 func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request) {
@@ -330,9 +350,15 @@ func (c *ApiConfig) HandlerTransferServer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	respondWithJson(w, http.StatusOK, struct {
-		Message string `json:"message"`
-	}{Message: fmt.Sprintf("successfully transferred server '%s' from '%s' to '%s'", serverName, userCtx.Username, params.NewOwner)})
+	msg := messageJson{
+		Message: fmt.Sprintf("successfully transferred server '%s' from '%s' to '%s'", serverName, userCtx.Username, params.NewOwner),
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "message", msg)
+	} else {
+		respondWithJson(w, http.StatusOK, msg)
+	}
 }
 
 func (c *ApiConfig) HandlerStartGameServer(w http.ResponseWriter, r *http.Request) {
@@ -374,9 +400,16 @@ func (c *ApiConfig) HandlerStartGameServer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	c.Poke()
-	respondWithJson(w, http.StatusOK, struct {
-		Message string `json:"message"`
-	}{Message: fmt.Sprintf("server '%s' successfully started", srvName)})
+
+	msg := messageJson{
+		Message: fmt.Sprintf("server '%s' successfully started", srvName),
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "message", msg)
+	} else {
+		respondWithJson(w, http.StatusOK, msg)
+	}
 }
 
 func (c *ApiConfig) HandlerStopGameServer(w http.ResponseWriter, r *http.Request) {
@@ -419,9 +452,16 @@ func (c *ApiConfig) HandlerStopGameServer(w http.ResponseWriter, r *http.Request
 	}
 
 	c.Poke()
-	respondWithJson(w, http.StatusOK, struct {
-		Message string `json:"message"`
-	}{Message: fmt.Sprintf("server '%s' successfully stopped", srvName)})
+
+	msg := messageJson{
+		Message: fmt.Sprintf("server '%s' successfully stopped", srvName),
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "message", msg)
+	} else {
+		respondWithJson(w, http.StatusOK, msg)
+	}
 }
 
 func (c *ApiConfig) HandlerDeletePVC(w http.ResponseWriter, r *http.Request) {
@@ -466,7 +506,15 @@ func (c *ApiConfig) HandlerDeletePVC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJson(w, http.StatusOK, messageJson{Message: fmt.Sprintf("PVC for server '%s' successfully deleted", srvName)})
+	msg := messageJson{
+		Message: fmt.Sprintf("PVC for server '%s' successfully deleted", srvName),
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "message", msg)
+	} else {
+		respondWithJson(w, http.StatusOK, msg)
+	}
 }
 
 func (c *ApiConfig) HandlerUpdateGameServerConfig(w http.ResponseWriter, r *http.Request) {
@@ -537,5 +585,13 @@ func (c *ApiConfig) HandlerUpdateGameServerConfig(w http.ResponseWriter, r *http
 		c.Poke()
 	}
 
-	respondWithJson(w, http.StatusOK, messageJson{Message: fmt.Sprintf("config for server '%s' successfully updated", srvName)})
+	msg := messageJson{
+		Message: fmt.Sprintf("config for server '%s' successfully updated", srvName),
+	}
+
+	if wantsHTML(r) {
+		respondWithHTML(w, http.StatusOK, c.Templates, "message", msg)
+	} else {
+		respondWithJson(w, http.StatusOK, msg)
+	}
 }
