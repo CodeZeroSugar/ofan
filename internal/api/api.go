@@ -281,7 +281,11 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 	}
 
 	if userCtx.IsRoot || userCtx.IsAdmin {
-		respondWithJson(w, http.StatusOK, viewMap)
+		if wantsHTML(r) {
+			respondWithHTML(w, http.StatusOK, c.Templates, "view", viewMap)
+		} else {
+			respondWithJson(w, http.StatusOK, viewMap)
+		}
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,6 +37,18 @@ func (s *apiSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { store.Close() })
 
+	tmpl := template.Must(template.New("root").Parse(
+		`{{define "create"}}<p>server_name={{.ServerName}}</p>{{end}}` +
+			`{{define "delete"}}<p>server_name={{.ServerName}}</p>{{end}}` +
+			`{{define "view"}}{{range $name, $view := .}}
+		<div>{{$name}} -- {{$view.Status}}</div>
+		{{else}}
+		<p>No servers.</p>
+		{{end}}
+		{{end}}` +
+			`{{define "message"}}<p>message={{.Message}}</p>{{end}}`,
+	))
+
 	s.cfg = &ApiConfig{
 		Clientset:       fake.NewSimpleClientset(),
 		InformerManager: &k8s.InformerManager{Registry: k8s.NewServerRegistry()},
@@ -43,6 +56,7 @@ func (s *apiSuite) SetupTest() {
 		Store:           store,
 		Auth:            auth.NewManager(store, []byte("testsecret")),
 		Poke:            func() {},
+		Templates:       tmpl,
 	}
 }
 
@@ -120,8 +134,7 @@ func (s *apiSuite) TestDelete_Valid() {
 	})
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
-
+	mux.HandleFunc("/api/v1/servers/{server_name}/delete", s.cfg.HandlerDeleteGameServer)
 	body := "{}"
 	ctx := context.Background()
 	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
@@ -1443,6 +1456,148 @@ func (s *apiSuite) TestDeriveHealth() {
 	for _, tc := range tests {
 		s.Run(tc.name, func() {
 			s.Assert().Equal(tc.expected, deriveHealth(tc.status, tc.desired, tc.pod, tc.failures))
+		})
+	}
+}
+
+func (s *apiSuite) TestApiHTML() {
+	tests := []struct {
+		name         string
+		method       string
+		target       string
+		body         string
+		muxPattern   string
+		handler      http.HandlerFunc
+		expectedCode int
+		bodyContains []string
+	}{
+		{
+			name:         "create renders HTML",
+			method:       http.MethodPost,
+			target:       "/api/v1/servers/create",
+			body:         `{"name":"alpha","password":"secret123"}`,
+			muxPattern:   "POST /api/v1/servers/create",
+			handler:      s.cfg.HandlerCreateGameServer,
+			expectedCode: http.StatusAccepted,
+			bodyContains: []string{"alpha"},
+		},
+		{
+			name:         "delete renders HTML",
+			method:       http.MethodPost,
+			target:       "/api/v1/servers/delta/delete",
+			body:         `{}`,
+			muxPattern:   "POST /api/v1/servers/{server_name}/delete",
+			handler:      s.cfg.HandlerDeleteGameServer,
+			expectedCode: http.StatusAccepted,
+			bodyContains: []string{"delta"},
+		},
+		{
+			name:         "single get renders html",
+			method:       http.MethodGet,
+			target:       "/api/v1/servers/alpha",
+			body:         `{}`,
+			muxPattern:   "GET /api/v1/servers/{server_name}",
+			handler:      s.cfg.HandlerGetGameServer,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"alpha", "provisioning"},
+		},
+		{
+			name:         "list renders html",
+			method:       http.MethodGet,
+			target:       "/api/v1/servers",
+			body:         `{}`,
+			muxPattern:   "GET /api/v1/servers",
+			handler:      s.cfg.HandlerListGameServers,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"alpha", "provisioning", "bravo", "running"},
+		},
+		{
+			name:         "transfer renders message",
+			method:       http.MethodPost,
+			target:       "/api/v1/servers/bravo/transfer",
+			body:         `{"new_owner":"bob"}`,
+			muxPattern:   "POST /api/v1/servers/{server_name}/transfer",
+			handler:      s.cfg.HandlerTransferServer,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"successfully transferred server"},
+		},
+		{
+			name:         "stop renders message",
+			method:       http.MethodPost,
+			target:       "/api/v1/servers/alpha/stop",
+			body:         `{}`,
+			muxPattern:   "POST /api/v1/servers/{server_name}/stop",
+			handler:      s.cfg.HandlerStopGameServer,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"successfully stopped"},
+		},
+		{
+			name:         "start renders message",
+			method:       http.MethodPost,
+			target:       "/api/v1/servers/alpha/start",
+			body:         `{}`,
+			muxPattern:   "POST /api/v1/servers/{server_name}/start",
+			handler:      s.cfg.HandlerStartGameServer,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"successfully started"},
+		},
+		{
+			name:         "config update renders message",
+			method:       http.MethodPut,
+			target:       "/api/v1/servers/bravo/config",
+			body:         testConfigJSONFull("bravo", "bravo-world", "atleast5", "1234", "true"),
+			muxPattern:   "PUT /api/v1/servers/{server_name}/config",
+			handler:      s.cfg.HandlerUpdateGameServerConfig,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"successfully updated"},
+		},
+		{
+			name:         "purge renders message",
+			method:       http.MethodPost,
+			target:       "/api/v1/system/purge-storage/echo",
+			body:         `{"confirm":true}`,
+			muxPattern:   "POST /api/v1/system/purge-storage/{server_name}",
+			handler:      s.cfg.HandlerDeletePVC,
+			expectedCode: http.StatusOK,
+			bodyContains: []string{"successfully deleted"},
+		},
+	}
+	ctx := context.Background()
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "secret123", false))
+
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "bravo", admin.Username, testConfigJSONFull("bravo", "bravo-world", "secret123", "1234", "false")))
+	s.cfg.InformerManager.Registry.Upsert("bravo", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+
+	s.Require().NoError(s.cfg.Store.CreateServer(ctx, "delta", admin.Username, testConfigJSON("bravo")))
+	s.cfg.InformerManager.Registry.Upsert("delta", func(st *k8s.ServerState) {
+		st.Namespace = "ofan-dev"
+		st.Status = "running"
+	})
+
+	_, err := s.cfg.Clientset.CoreV1().PersistentVolumeClaims(s.cfg.Namespace).Create(ctx, &v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Labels: serverLabels("echo"), Name: "echo-pvc"}}, metav1.CreateOptions{})
+	s.Require().NoError(err)
+
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			mux := http.NewServeMux()
+			mux.HandleFunc(tc.muxPattern, tc.handler)
+
+			req := s.reqWithUser(admin, tc.method, tc.target, tc.body)
+			req.Header.Set("Accept", "text/html")
+			s.rr = httptest.NewRecorder()
+
+			mux.ServeHTTP(s.rr, req)
+
+			s.Assert().Equal(tc.expectedCode, s.rr.Code)
+			s.Assert().Equal("text/html; charset=utf-8", s.rr.Header().Get("Content-Type"))
+			for _, word := range tc.bodyContains {
+				s.Assert().Contains(s.rr.Body.String(), word)
+			}
 		})
 	}
 }
