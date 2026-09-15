@@ -50,6 +50,8 @@ func (c *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auth.SetSessionCookie(w, r, tokenString)
+
 	loginResponse := struct {
 		Token              string `json:"token"`
 		MustChangePassword bool   `json:"must_change_password"`

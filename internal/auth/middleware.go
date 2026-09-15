@@ -26,11 +26,23 @@ func getBearerToken(headers http.Header) (string, error) {
 	return strings.TrimSpace(tokenString), nil
 }
 
+func sessionToken(r *http.Request) string {
+	cookie, err := r.Cookie(CookieName)
+	if err == nil {
+		return cookie.Value
+	}
+	token, err := getBearerToken(r.Header)
+	if err == nil {
+		return token
+	}
+	return ""
+}
+
 func (m *Manager) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, err := getBearerToken(r.Header)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+		token := sessionToken(r)
+		if token == "" {
+			http.Error(w, "invalid session, please log in", http.StatusUnauthorized)
 			return
 		}
 
