@@ -245,59 +245,13 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	stateList := c.InformerManager.Registry.List()
-	if len(stateList) == 0 {
-		if wantsHTML(r) {
-			respondWithHTML(w, http.StatusOK, c.Templates, "view", make(map[string]ServerView))
-		} else {
-			respondWithJson(w, http.StatusOK, make(map[string]ServerView))
-		}
-		return
-	}
-
-	srvRecords, err := c.Store.ListServerConfigs(r.Context())
+	viewMap, err := c.buildViewMap(r.Context(), userCtx)
 	if err != nil {
-		log.Printf("failed to get server configs for metrics: %v", err)
-		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		log.Printf("failed to retrieve server information for user '%s': %v", userCtx.Username, err)
+		http.Error(w, "failed to retrieve server information", http.StatusInternalServerError)
 		return
 	}
 
-	rowMap := make(map[string]db.ServerRecord, len(srvRecords))
-	for _, r := range srvRecords {
-		rowMap[r.Name] = r
-	}
-
-	viewMap := make(map[string]ServerView)
-	for _, s := range stateList {
-		rec := rowMap[s.Name]
-		created := rec.CreatedAt
-		if created.IsZero() {
-			created = s.CreatedAt
-		}
-		viewMap[s.Name] = ServerView{
-			ServerState:         s,
-			DesiredState:        rec.DesiredState,
-			Health:              deriveHealth(s.Status, rec.DesiredState, s.PodWaiting, rec.ConsecutiveFailures),
-			ConsecutiveFailures: rec.ConsecutiveFailures,
-			Uptime:              time.Since(created),
-			Owner:               rec.Owner,
-		}
-	}
-
-	if userCtx.IsRoot || userCtx.IsAdmin {
-		if wantsHTML(r) {
-			respondWithHTML(w, http.StatusOK, c.Templates, "view", viewMap)
-		} else {
-			respondWithJson(w, http.StatusOK, viewMap)
-		}
-		return
-	}
-
-	for n, s := range viewMap {
-		if s.Owner != userCtx.Username {
-			delete(viewMap, n)
-		}
-	}
 	if wantsHTML(r) {
 		respondWithHTML(w, http.StatusOK, c.Templates, "view", viewMap)
 	} else {
