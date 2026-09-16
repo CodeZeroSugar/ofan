@@ -252,6 +252,7 @@ func (c *ApiConfig) HandlerListGameServers(w http.ResponseWriter, r *http.Reques
 		} else {
 			respondWithJson(w, http.StatusOK, make(map[string]ServerView))
 		}
+		return
 	}
 
 	srvRecords, err := c.Store.ListServerConfigs(r.Context())
