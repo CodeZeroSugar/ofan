@@ -20,6 +20,124 @@ func newTestManager(t *testing.T) *Manager {
 	return NewManager(store, []byte("testsecret"))
 }
 
+func TestMiddleware_MustChangePassword(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.AuthMiddleware(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.False(t, called)
+}
+
+func TestMiddleware_CookieNoHeader(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.AuthMiddleware(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, called)
+	require.NotNil(t, gotUser)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
+func TestMiddleware_CookiePlusBadHeader(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	req.Header.Add("Authorization", "Bearer "+"nottherighttoken")
+	rec := httptest.NewRecorder()
+
+	handler := mgr.AuthMiddleware(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	require.NotNil(t, gotUser)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
+func TestMiddleware_TamperedToken(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	stringToken = "oopsiewrongtoken"
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.AuthMiddleware(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.False(t, called)
+	require.Nil(t, gotUser)
+}
+
 func TestMiddleware_NoAuthHeader(t *testing.T) {
 	mgr := newTestManager(t)
 

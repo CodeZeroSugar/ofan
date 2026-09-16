@@ -16,9 +16,39 @@ func (s *apiSuite) TestLogin_Valid() {
 
 	s.cfg.HandlerLogin(s.rr, req)
 
+	cookie := s.rr.Header().Get("Set-Cookie")
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
 	s.Assert().Contains(s.rr.Body.String(), `"token":`)
 	s.Assert().Contains(s.rr.Body.String(), `"must_change_password":true`)
+	s.Assert().NotEqual("", cookie)
+}
+
+func (s *apiSuite) TestLoginLogout_ClearCookie() {
+	body := `{"username": "admin", "password": "testpass"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	s.rr = httptest.NewRecorder()
+
+	s.cfg.HandlerLogin(s.rr, req)
+	cookie := s.rr.Header().Get("Set-Cookie")
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+	s.Assert().Contains(s.rr.Body.String(), `"token":`)
+	s.Assert().Contains(s.rr.Body.String(), `"must_change_password":true`)
+	s.Assert().NotEqual("", cookie)
+
+	ctx := context.Background()
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/auth/logout", s.cfg.HandlerLogout)
+
+	body = "{}"
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/auth/logout", body)
+
+	s.rr = httptest.NewRecorder()
+	mux.ServeHTTP(s.rr, req)
+	cookie = s.rr.Header().Get("Set-Cookie")
+
+	s.Assert().Equal("ofan_session=; Path=/; Max-Age=0", cookie)
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
 }
 
 func (s *apiSuite) TestLogin_BadPassword() {
