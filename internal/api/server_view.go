@@ -5,7 +5,17 @@ import (
 	"time"
 
 	"github.com/CodeZeroSugar/ofan/internal/db"
+	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
+
+type ServerView struct {
+	*k8s.ServerState
+	DesiredState        string        `json:"desired_state"`
+	Health              string        `json:"health"`
+	ConsecutiveFailures int           `json:"consecutive_failures"`
+	Uptime              time.Duration `json:"uptime"`
+	Owner               string        `json:"owner,omitempty"`
+}
 
 func (c *ApiConfig) buildViewMap(ctx context.Context, userCtx *db.User) (map[string]ServerView, error) {
 	viewMap := make(map[string]ServerView)

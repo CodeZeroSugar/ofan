@@ -29,15 +29,6 @@ type ApiConfig struct {
 	Templates       *template.Template
 }
 
-type ServerView struct {
-	*k8s.ServerState
-	DesiredState        string        `json:"desired_state"`
-	Health              string        `json:"health"`
-	ConsecutiveFailures int           `json:"consecutive_failures"`
-	Uptime              time.Duration `json:"uptime"`
-	Owner               string        `json:"owner,omitempty"`
-}
-
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
 	var req CreateGameServer
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
