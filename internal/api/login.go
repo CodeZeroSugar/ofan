@@ -62,3 +62,7 @@ func (c *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJson(w, http.StatusOK, loginResponse)
 }
+
+func (c *ApiConfig) HandlerLoginPage(w http.ResponseWriter, r *http.Request) {
+	respondWithHTML(w, 200, c.Templates, "login", "{}")
+}

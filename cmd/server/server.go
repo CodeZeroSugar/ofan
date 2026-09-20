@@ -83,6 +83,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	// Public handlers
 	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))
 	mux.HandleFunc("POST /api/v1/auth/login", s.apiCfg.HandlerLogin)
+	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
 	mux.HandleFunc("GET /index", s.handlerIndex)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFs))))
 	mux.HandleFunc("GET /healthz", s.handlerReadiness)

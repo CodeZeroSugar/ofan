@@ -1,0 +1,78 @@
+{{define "login"}}
+<head>
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/json-enc.js"></script>
+</head>
+<div id="login-container">
+  <h2>Login</h2>
+  <form
+    id="login-form"
+    hx-post="/api/v1/auth/login"
+    hx-ext="json-enc"
+    hx-swap="none"
+  >
+    <div>
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required />
+    </div>
+
+    <div>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required />
+    </div>
+    <button type="submit">Log In</button>
+  </form>
+  <form
+    id="change-password-form"
+    style="visibility: hidden"
+    hx-post="/api/v1/auth/password"
+    hx-ext="json-enc"
+    hx-swap="none"
+  >
+    <div>
+      <label for="new-password">New Password</label>
+      <input type="password" id="new-password" name="new_password" required />
+    </div>
+    <button type="submit">Submit</button>
+  </form>
+  <script>
+    document.body.addEventListener("htmx:afterRequest", function (event) {
+      const reqElement = event.detail.elt;
+      if (!reqElement) return;
+      const responseStatus = event.detail.xhr.status;
+      if (reqElement.id === "login-form") {
+        if (responseStatus !== 200) {
+          document.getElementById("login-error").textContent =
+            event.detail.xhr.responseText;
+          return;
+        }
+        let data = {};
+        try {
+          data = JSON.parse(event.detail.xhr.responseText);
+        } catch (error) {
+          document.getElementById("login-error").textContent =
+            event.detail.xhr.responseText;
+          return;
+        }
+        if (data.must_change_password) {
+          document.getElementById("login-form").style.visibility = "hidden";
+          document.getElementById("change-password-form").style.visibility =
+            "visible";
+          return;
+        }
+        window.location.href = "/servers";
+      } else if (reqElement.id === "change-password-form") {
+        if (responseStatus !== 200) {
+          document.getElementById("login-error").textContent =
+            event.detail.xhr.responseText;
+          return;
+        }
+        window.location.href = "/servers";
+      } else {
+        return;
+      }
+    });
+  </script>
+</div>
+<div id="login-error"></div>
+{{end}}
