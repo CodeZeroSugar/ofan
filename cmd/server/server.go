@@ -80,13 +80,16 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	adminMux.HandleFunc("GET /api/v1/admin/users", s.apiCfg.HandlerListUsers)
 	apiMux.Handle("/api/v1/admin/", auth.RequireAdmin(adminMux))
 
-	// Public handlers
+	// Public handlers_
 	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))
 	mux.HandleFunc("POST /api/v1/auth/login", s.apiCfg.HandlerLogin)
-	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
 	mux.HandleFunc("GET /index", s.handlerIndex)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFs))))
 	mux.HandleFunc("GET /healthz", s.handlerReadiness)
+
+	// Page servers
+	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
+	mux.Handle("GET /servers", s.apiCfg.Auth.AuthMiddleware(http.HandlerFunc(s.apiCfg.HandlerServersPage)))
 
 	return s, nil
 }
