@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 	"github.com/CodeZeroSugar/ofan/internal/db"
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
+	"github.com/CodeZeroSugar/ofan/web"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,17 +37,8 @@ func (s *apiSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.T().Cleanup(func() { store.Close() })
 
-	tmpl := template.Must(template.New("root").Parse(
-		`{{define "create"}}<p>server_name={{.ServerName}}</p>{{end}}` +
-			`{{define "delete"}}<p>server_name={{.ServerName}}</p>{{end}}` +
-			`{{define "view"}}{{range $name, $view := .}}
-		<div>{{$name}} -- {{$view.Status}}</div>
-		{{else}}
-		<p>No servers.</p>
-		{{end}}
-		{{end}}` +
-			`{{define "message"}}<p>message={{.Message}}</p>{{end}}`,
-	))
+	tmpl, err := web.ParseTemplates()
+	s.Require().NoError(err)
 
 	s.cfg = &ApiConfig{
 		Clientset:       fake.NewSimpleClientset(),
