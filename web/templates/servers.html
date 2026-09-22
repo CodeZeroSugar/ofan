@@ -43,7 +43,14 @@
       </div>
     </header>
     <main>
-      <div id="server-list">{{ template "view" .Servers}}</div>
+      <div
+        id="server-list"
+        hx-get="/api/v1/servers"
+        hx-trigger="every 5s"
+        hx-headers='{"Accept": "text/html"}'
+      >
+        {{ template "view" .Servers}}
+      </div>
     </main>
   </body>
 </html>
