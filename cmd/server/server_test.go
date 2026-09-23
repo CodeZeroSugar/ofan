@@ -87,6 +87,36 @@ func (s *apiSuite) TestResetDatabase() {
 	s.Assert().True(len(servers) == 0)
 }
 
+func (s *apiSuite) TestServersRoute() {
+	_, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	cfg := loadConfig()
+	srv, err := newServer("5432", s.cfg, &cfg, cancel)
+	s.s = srv
+	s.Require().NoError(err)
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	s.rr = httptest.NewRecorder()
+	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusUnauthorized, s.rr.Code)
+}
+
+func (s *apiSuite) TestLoginRoute() {
+	_, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	cfg := loadConfig()
+	srv, err := newServer("5432", s.cfg, &cfg, cancel)
+	s.s = srv
+	s.Require().NoError(err)
+
+	req := httptest.NewRequest(http.MethodGet, "/login", http.NoBody)
+	s.rr = httptest.NewRecorder()
+	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
 func TestApiSuite(t *testing.T) {
 	suite.Run(t, new(apiSuite))
 }

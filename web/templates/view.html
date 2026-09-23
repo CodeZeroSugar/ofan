@@ -1,5 +1,6 @@
 {{define "view"}}{{range $name, $view := .}}
 <div>{{$name}}</div>
+<div>{{$view.NodeIP}}:{{$view.NodePort}}</div>
 <div>Status -- {{$view.Status}}</div>
 <div>Desired State -- {{$view.DesiredState}}</div>
 <div>Health -- {{$view.Health}}</div>
