@@ -92,8 +92,8 @@ func (s *apiSuite) TestServersRoute() {
 	defer cancel()
 	cfg := loadConfig()
 	srv, err := newServer("5432", s.cfg, &cfg, cancel)
-	s.s = srv
 	s.Require().NoError(err)
+	s.s = srv
 
 	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
 	s.rr = httptest.NewRecorder()
@@ -107,14 +107,30 @@ func (s *apiSuite) TestLoginRoute() {
 	defer cancel()
 	cfg := loadConfig()
 	srv, err := newServer("5432", s.cfg, &cfg, cancel)
-	s.s = srv
 	s.Require().NoError(err)
+	s.s = srv
 
 	req := httptest.NewRequest(http.MethodGet, "/login", http.NoBody)
 	s.rr = httptest.NewRecorder()
 	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
 
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
+func (s *apiSuite) TestRedirectRoute() {
+	_, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	cfg := loadConfig()
+	srv, err := newServer("5432", s.cfg, &cfg, cancel)
+	s.s = srv
+	s.Require().NoError(err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	s.rr = httptest.NewRecorder()
+	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusFound, s.rr.Code)
+	s.Assert().Equal("/servers", s.rr.Header().Get("Location"))
 }
 
 func TestApiSuite(t *testing.T) {
