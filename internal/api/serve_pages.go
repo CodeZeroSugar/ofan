@@ -7,6 +7,10 @@ import (
 	"github.com/CodeZeroSugar/ofan/internal/auth"
 )
 
+func (c *ApiConfig) HandlerLoginPage(w http.ResponseWriter, r *http.Request) {
+	respondWithHTML(w, http.StatusOK, c.Templates, "login", "{}")
+}
+
 func (c *ApiConfig) HandlerServersPage(w http.ResponseWriter, r *http.Request) {
 	userCtx := auth.UserFromContext(r.Context())
 	if userCtx == nil {

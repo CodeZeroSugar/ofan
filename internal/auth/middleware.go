@@ -38,6 +38,44 @@ func sessionToken(r *http.Request) string {
 	return ""
 }
 
+func (m *Manager) LoginRedirect(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := sessionToken(r)
+		if token == "" {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		claims, err := m.VerifyJWT(token)
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		user, err := m.store.GetUserByID(r.Context(), claims.UserID)
+		if err != nil {
+			if errors.Is(err, db.ErrUserNotFound) {
+				http.Redirect(w, r, "/login", http.StatusFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		if user.IsSuspended {
+			http.Error(w, "account suspended", http.StatusForbidden)
+			return
+		}
+		ctx := context.WithValue(r.Context(), userKey, user)
+		if user.MustChangePassword && (r.URL.Path != "/api/v1/auth/password" && r.URL.Path != "/api/v1/auth/logout") {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (m *Manager) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := sessionToken(r)

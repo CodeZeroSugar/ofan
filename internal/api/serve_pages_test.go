@@ -140,5 +140,5 @@ func (s *apiSuite) TestPageHandler_LoginNothing() {
 	s.Assert().Contains(s.rr.Body.String(), `name="username"`)
 	s.Assert().Contains(s.rr.Body.String(), `name="password"`)
 	s.Assert().Contains(s.rr.Body.String(), `id="change-password-form"`)
-	s.Assert().Contains(s.rr.Body.String(), `visibility: hidden`)
+	s.Assert().Contains(s.rr.Body.String(), `display: none`)
 }

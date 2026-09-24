@@ -29,16 +29,14 @@
             const responseStatus = event.detail.xhr.status;
             if (reqElement.id === "logout-button") {
               if (responseStatus !== 200) {
-                document.getElementById("logout-error").textContent =
-                  event.detail.xhr.responseText;
+                window.location.href = "/login";
                 return;
               }
               let data = {};
               try {
                 data = JSON.parse(event.detail.xhr.responseText);
               } catch (error) {
-                document.getElementById("logout-error").textContent =
-                  event.detail.xhr.responseText;
+                window.location.href = "/login";
                 return;
               }
               if (data.message === "logout successful") {

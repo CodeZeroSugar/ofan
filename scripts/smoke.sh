@@ -58,8 +58,40 @@ wait_annotation_changed() { # $1 = deployment, $2 = old hash, $3 = timeout secon
   exit 1
 }
 
-root_login() {
-  local body code resp token
+preflight_cluster() { # fail fast when the node IP went stale (e.g. DHCP change on single-node k3s)
+  local host_ip node_ips endpoint_ips nip eip match=0
+  # Host primary IP = src of the default route. Node InternalIPs must contain it,
+  # or pod→API (ClusterIP) traffic DNATs to a dead address and PVCs never bind.
+  host_ip=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')
+  node_ips=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items[].status.addresses[] | select(.type=="InternalIP") | .address') || {
+    echo "FAIL: preflight — cannot list cluster nodes" >&2; return 1
+  }
+  if [[ -n "$host_ip" ]]; then
+    for nip in $node_ips; do
+      [[ "$nip" == "$host_ip" ]] && match=1
+    done
+    if [[ "$match" != 1 ]]; then
+      echo "FAIL: preflight — host IP [$host_ip] missing from node InternalIP(s) [$node_ips]; node registration is stale (DHCP lease changed?). Restart k3s on a stable network, then re-run." >&2
+      return 1
+    fi
+  fi
+  match=0
+  endpoint_ips=$(kubectl get endpointslices -n default -l 'kubernetes.io/service-name=kubernetes' -o json 2>/dev/null | jq -r '.items[].endpoints[].addresses[]') || {
+    echo "FAIL: preflight — cannot read kubernetes EndpointSlice" >&2; return 1
+  }
+  for nip in $node_ips; do
+    for eip in $endpoint_ips; do
+      [[ "$nip" == "$eip" ]] && match=1
+    done
+  done
+  if [[ "$match" != 1 ]]; then
+    echo "FAIL: preflight — node InternalIP(s) [$node_ips] missing from kubernetes EndpointSlice [$endpoint_ips]; pod→API traffic is blackholed. Restart k3s, then re-run." >&2
+    return 1
+  fi
+  echo ">> preflight: node IP matches host, present in kubernetes endpoints"
+}
+
+root_login() {  local body code resp token
 
   body=$(jq -n --arg u "$OFAN_ROOT_USER" --arg p "$OFAN_ROOT_PASS" '{username:$u, password:$p}')
   code=$(curl -s -o "$RESP" -w '%{http_code}' \
@@ -108,12 +140,31 @@ wait_for() { # $1 = timeout seconds, then jq args + expression; sets BODY each p
   done
   echo "FAIL: condition not met within ${timeout}s" >&2
   [[ -n "${BODY:-}" ]] && echo "last response body: $BODY" >&2
+  dump_debug
   exit 1
+}
+
+dump_debug() { # best-effort cluster snapshot on wait timeout; never fails
+  {
+    echo "--- kubectl pods ---"
+    kubectl -n "$NS" get pods -o wide 2>&1
+    echo "--- kubectl pvc ---"
+    kubectl -n "$NS" get pvc 2>&1
+    echo "--- pending pod describes ---"
+    for p in $(kubectl -n "$NS" get pods -o 'jsonpath={.items[?(@.status.phase=="Pending")].metadata.name}' 2>/dev/null); do
+      kubectl -n "$NS" describe pod "$p" 2>&1 | tail -n 25
+    done
+    echo "--- recent events ---"
+    kubectl -n "$NS" get events --sort-by=.lastTimestamp 2>&1 | tail -n 15
+  } >&2 || true
 }
 
 if ! kubectl get ns "$NS" >/dev/null 2>&1; then
   echo "FAIL: namespace '$NS' not found" >&2; exit 1
 fi
+
+# 0. cluster preflight (read-only; fail before mutating anything)
+preflight_cluster || exit 1
 
 # 1. healthz
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/healthz")

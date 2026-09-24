@@ -99,7 +99,7 @@ func (s *apiSuite) TestServersRoute() {
 	s.rr = httptest.NewRecorder()
 	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
 
-	s.Assert().Equal(http.StatusUnauthorized, s.rr.Code)
+	s.Assert().Equal(http.StatusFound, s.rr.Code)
 }
 
 func (s *apiSuite) TestLoginRoute() {

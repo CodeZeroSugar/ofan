@@ -61,7 +61,6 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.apiCfg.HandlerStopGameServer)
 	apiMux.HandleFunc("PUT /api/v1/servers/{server_name}/config", s.apiCfg.HandlerUpdateGameServerConfig)
 
-	apiMux.HandleFunc("POST /api/v1/auth/logout", s.apiCfg.HandlerLogout)
 	apiMux.HandleFunc("POST /api/v1/auth/password", s.apiCfg.HandlerChangePassword)
 
 	// System command handlers, root protected
@@ -86,6 +85,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	// Public handlers_
 	mux.Handle("/api/v1/", s.apiCfg.Auth.AuthMiddleware(apiMux))
 	mux.HandleFunc("POST /api/v1/auth/login", s.apiCfg.HandlerLogin)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.apiCfg.HandlerLogout)
 	mux.Handle("GET /{$}", redirectHandler)
 	mux.HandleFunc("GET /index", s.handlerIndex)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.staticFs))))
@@ -93,7 +93,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 
 	// Page servers
 	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
-	mux.Handle("GET /servers", s.apiCfg.Auth.AuthMiddleware(http.HandlerFunc(s.apiCfg.HandlerServersPage)))
+	mux.Handle("GET /servers", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerServersPage)))
 
 	return s, nil
 }
