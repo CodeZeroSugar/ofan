@@ -2,9 +2,11 @@
 
 **Self-hosted orchestration for Valheim dedicated servers — declare the servers you want, Ofan converges your cluster onto them.** Under active development.
 
-## What it is
+## What's Ofan?
 
-Valheim co-op needs a always-on server, and hosting one means hand-managing machines, ports, worlds, and mods. Ofan turns that into a small declarative platform: a Go service backed by SQLite and Kubernetes (k3s) that provisions, heals, and tears down game servers from a single source of truth, fronted by a JSON API and a lightweight HTMX web UI.
+Hosting your own Valheim co-op shouldn't be a hassle and should be just as economical as paying for a third-party hosting service. Ofan bundles all the infrastructure needed for running your own Valheim servers and provides a lightweight web UI for convenient server and user management.
+
+Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a compact declarative platform -- a Go service backed by SQLite and Kubernetes (k3s) that provisions, repairs, and tears down game servers based on what the user defines in the web UI.
 
 ## What works today
 
@@ -20,9 +22,9 @@ Valheim co-op needs a always-on server, and hosting one means hand-managing mach
 ## Design decisions (the interesting parts)
 
 - **Tombstones over direct deletes** — deletes are state transitions the controller consumes, so crashes mid-teardown resume safely instead of leaking resources.
-- **No orphan adoption, ever** — a cluster resource without a DB row is drift to be removed, not state to be learned. Reattachment is a deliberate human act (recreate the same-named server onto the preserved PVC).
+- **No orphaned resource adoption** — a cluster resource without a DB row is drift to be removed, not state to be learned. Reattachment is a deliberate act (recreate the same-named server onto the preserved PVC).
 - **Ownership lives only in the database** — no ownership labels in Kubernetes; the row is the single authority.
-- **Boring frontend, on purpose** — HTMX + Go templates, no JS framework. The server renders both the page and its live fragments from one template, so first paint and polled updates can never drift apart.
+- **Boring frontend** — HTMX + Go templates, no JS framework. The server renders both the page and its live fragments from one template, so first paint and polled updates can never drift apart.
 
 ## Architecture
 
@@ -30,9 +32,9 @@ Valheim co-op needs a always-on server, and hosting one means hand-managing mach
 Browser / API clients (JSON ↔ HTML via Accept header)
         │ HTTPS
 ┌───────▼────────┐    poke     ┌──────────────────┐
-│  HTTP handlers  │ ─────────▶ │    Controller    │
-│  (rows + Poke)  │            │ (rows → cluster) │
-└───────┬────────┘            └────────┬─────────┘
+│  HTTP handlers │ ─────────▶  │    Controller    │
+│  (rows + Poke) │             │ (rows → cluster) │
+└───────┬────────┘             └───────┬──────────┘
         │                              │
         ▼                              ▼
    SQLite (desired)            k3s via client-go (actual)
@@ -41,7 +43,12 @@ Browser / API clients (JSON ↔ HTML via Accept header)
 
 ## Stack
 
-Go 1.26 · client-go (informers + registry) · modernc SQLite · JWT + Argon2id · HTMX + Go templates (Tailwind pipeline landing this slice) · testify throughout (`go test ./... -race -count=1` green)
+- Go 1.26
+- testify throughout (`go test ./... -race -count=1` green)
+- client-go (informers + registry)
+- modernc SQLite
+- JWT + Argon2id
+- HTMX + Go templates (Tailwind pipeline landing this slice)
 
 ## Getting started (current state)
 
@@ -56,4 +63,4 @@ Prerequisites: Go 1.26+, a k3s cluster with kubeconfig. Build with `go build ./.
 
 ## Status
 
-Solo project, built in the open, in active development — the commit history is the honest version of the roadmap above. Feedback and questions welcome via GitHub issues.
+Solo project, in active development, MVP expected before the end of 2026. Feedback and questions welcome via GitHub issues.
