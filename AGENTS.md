@@ -11,11 +11,11 @@ survival game Valheim.
 
 The role of agents in this project is purely for guidance and code review. Agents
 are forbidden from writing to production files in this project. Agents assisting in this project will act as a Senior Developer/Code Reviewer:
-they will provide guidance, answer questions, help with project direction and ideas. The agents will avoid providing code snippets and complete files/functions.
-The agents may provide function signatures, data structures, steps for
+they will provide guidance, answer questions, help with project direction and ideas. The agents will avoid providing Go code snippets and complete files/functions.
+Exception: concrete Tailwind CSS utility class names and minimal HTML `class` attribute examples for `web/templates/` and `web/static/css/` are allowed when guiding UI slices. The agents may provide function signatures, data structures, steps for
 implementing the code, but WILL NOT write the code to files themselves.
 
-The only files the agents may contribute to directly are AGENTS.md and TODO.md
+The only files the agents may contribute to directly are AGENTS.md, TODO.md, and README.md
 
 **Canonical memory**: AGENTS.md is the repo-committed canonical record of
 decisions, rules, and roadmap. TODO.md is gitignored local scratch — task state
@@ -115,10 +115,11 @@ Agents do not write code; the lifecycle is a guide/review loop:
 1. **Intake** — clarify the goal. Read the relevant files and trace the flow
    end-to-end before advising. Never advise on a partial picture.
 2. **Guide** — explain step by step. Function signatures, data structures, and
-   test tables are fair game. Avoid code snippets and complete files/functions.
+   test tables are fair game. Avoid Go code snippets and complete files/functions.
+   Tailwind utility names and minimal `class="..."` examples for UI work are allowed.
 3. **Review** — verify user-written code against the Locked domain rules and the
    Review checklist. Recommend test cases for gaps (see Testing philosophy).
-4. **Closeout** — only AGENTS.md and TODO.md are ever written. Keep the roadmap
+4. **Closeout** — only AGENTS.md, TODO.md, and README.md are ever written. Keep the roadmap
    current as decisions land or change.
 
 ### Review checklist (rule → check)

@@ -2,77 +2,129 @@
 <head>
   <script src="/static/htmx.min.js"></script>
   <script src="/static/json-enc.js"></script>
+  <link href="/static/css/output.css" rel="stylesheet" />
 </head>
-<div id="login-container">
-  <h2>Login</h2>
-  <form
-    id="login-form"
-    hx-post="/api/v1/auth/login"
-    hx-ext="json-enc"
-    hx-swap="none"
+<div
+  id="screen-wrapper"
+  class="flex-col flex min-h-screen items-center bg-zinc-900 text-neutral-50"
+>
+  <div id="title-wrapper" class="flex flex-1 items-center justify-center pb-8">
+    <h1
+      class="text-4xl md:text-5xl font-extrabold text-amber-500 tracking-tight"
+    >
+      Ofan
+    </h1>
+  </div>
+  <div
+    id="login-container"
+    class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8"
   >
-    <div>
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" required />
-    </div>
+    <h2 class="text-2xl font-bold mb-4">Login</h2>
+    <form
+      id="login-form"
+      class="flex flex-col gap-4"
+      hx-post="/api/v1/auth/login"
+      hx-ext="json-enc"
+      hx-swap="none"
+    >
+      <div>
+        <label for="username">Username</label>
+        <input
+          class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          type="text"
+          id="username"
+          name="username"
+          required
+        />
+      </div>
 
-    <div>
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" required />
-    </div>
-    <button type="submit">Log In</button>
-  </form>
-  <form
-    id="change-password-form"
-    style="visibility: hidden"
-    hx-post="/api/v1/auth/password"
-    hx-ext="json-enc"
-    hx-swap="none"
-  >
-    <div>
-      <label for="new-password">New Password</label>
-      <input type="password" id="new-password" name="new_password" required />
-    </div>
-    <button type="submit">Submit</button>
-  </form>
-  <script>
-    document.body.addEventListener("htmx:afterRequest", function (event) {
-      const reqElement = event.detail.elt;
-      if (!reqElement) return;
-      const responseStatus = event.detail.xhr.status;
-      if (reqElement.id === "login-form") {
-        if (responseStatus !== 200) {
-          document.getElementById("login-error").textContent =
-            event.detail.xhr.responseText;
+      <div>
+        <label for="password">Password</label>
+        <input
+          class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          type="password"
+          id="password"
+          name="password"
+          required
+        />
+      </div>
+      <div class="relative pb-6">
+        <button
+          type="submit"
+          class="w-full bg-zinc-500 hover:bg-zinc-600 font-medium py-2 rounded-lg transition-colors"
+        >
+          Submit
+        </button>
+        <div
+          id="login-error"
+          class="absolute left-0 right-0 text-center text-sm text-red-500 font-medium mt-4"
+        ></div>
+      </div>
+    </form>
+    <form
+      id="change-password-form"
+      class="flex flex-col gap-4"
+      style="display: none"
+      hx-post="/api/v1/auth/password"
+      hx-ext="json-enc"
+      hx-swap="none"
+    >
+      <div>
+        <label for="new-password">New Password</label>
+        <input
+          class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          type="password"
+          id="new-password"
+          name="new_password"
+          required
+        />
+      </div>
+      <button
+        class="w-full bg-zinc-500 hover:bg-zinc-600 font-medium py-2 rounded-lg transition-colors"
+        type="submit"
+      >
+        Submit
+      </button>
+    </form>
+    <script>
+      document.body.addEventListener("htmx:afterRequest", function (event) {
+        const reqElement = event.detail.elt;
+        if (!reqElement) return;
+        const responseStatus = event.detail.xhr.status;
+        if (reqElement.id === "login-form") {
+          if (responseStatus !== 200) {
+            document.getElementById("login-error").textContent =
+              event.detail.xhr.responseText;
+            return;
+          }
+          let data = {};
+          try {
+            data = JSON.parse(event.detail.xhr.responseText);
+          } catch (error) {
+            document.getElementById("login-error").textContent =
+              event.detail.xhr.responseText;
+            return;
+          }
+          if (data.must_change_password) {
+            document.getElementById("login-form").style.display = "none";
+            document.getElementById("change-password-form").style.display =
+              "block";
+            return;
+          }
+          window.location.href = "/servers";
+        } else if (reqElement.id === "change-password-form") {
+          if (responseStatus !== 200) {
+            document.getElementById("login-error").textContent =
+              event.detail.xhr.responseText;
+            return;
+          }
+          window.location.href = "/servers";
+        } else {
           return;
         }
-        let data = {};
-        try {
-          data = JSON.parse(event.detail.xhr.responseText);
-        } catch (error) {
-          document.getElementById("login-error").textContent =
-            event.detail.xhr.responseText;
-          return;
-        }
-        if (data.must_change_password) {
-          document.getElementById("login-form").style.visibility = "hidden";
-          document.getElementById("change-password-form").style.visibility =
-            "visible";
-          return;
-        }
-        window.location.href = "/servers";
-      } else if (reqElement.id === "change-password-form") {
-        if (responseStatus !== 200) {
-          document.getElementById("login-error").textContent =
-            event.detail.xhr.responseText;
-          return;
-        }
-        window.location.href = "/servers";
-      } else {
-        return;
-      }
-    });
-  </script>
+      });
+    </script>
+  </div>
+  <div class="flex-1"></div>
 </div>
-<div id="login-error"></div>
 {{end}}
