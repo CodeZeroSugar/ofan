@@ -17,9 +17,9 @@
   </div>
   <div
     id="login-container"
-    class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8"
+    class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8 flex flex-col gap-6"
   >
-    <h2 class="text-2xl font-bold mb-4">Login</h2>
+    <h2 class="text-2xl font-bold">Login</h2>
     <form
       id="login-form"
       class="flex flex-col gap-4"
@@ -108,7 +108,7 @@
           if (data.must_change_password) {
             document.getElementById("login-form").style.display = "none";
             document.getElementById("change-password-form").style.display =
-              "block";
+              "flex";
             return;
           }
           window.location.href = "/servers";

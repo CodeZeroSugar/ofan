@@ -1,10 +1,35 @@
 {{define "view"}}{{range $name, $view := .}}
-<div>{{$name}}</div>
-<div>{{$view.NodeIP}}:{{$view.NodePort}}</div>
-<div>Status -- {{$view.Status}}</div>
-<div>Desired State -- {{$view.DesiredState}}</div>
-<div>Health -- {{$view.Health}}</div>
-<div>Owner -- {{$view.Owner}}</div>
+<div class="rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow">
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-lg font-semibold text-neutral-50">{{$name}}</div>
+    <div
+      class="rounded-full px-3 py-1 text-xs font-semibold bg-zinc-700 text-zinc-200"
+    >
+      {{$view.Health}}
+    </div>
+  </div>
+  <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+    <div class="flex flex-col gap-1">
+      <span class="text-zinc-400">Status</span>
+      <div class="text-neutral-50">{{$view.Status}}</div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <span class="text-zinc-400">Desired State</span>
+      <div class="text-neutral-50">{{$view.DesiredState}}</div>
+    </div>
+    <div class="flex flex-col gap-1">
+      <span class="text-zinc-400">Owner</span>
+      <div class="text-neutral-50">{{$view.Owner}}</div>
+    </div>
+    <div class="text-sm col-span-2 text-zinc-400">
+      {{$view.NodeIP}}:{{$view.NodePort}}
+    </div>
+  </div>
+</div>
 {{else}}
-<div>No servers to display</div>
+<div
+  class="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-400"
+>
+  No servers to display
+</div>
 {{end}} {{end}}

@@ -7,12 +7,19 @@
     <link href="/static/css/output.css" rel="stylesheet" />
     <title>{{ .Title }}</title>
   </head>
-  <body>
-    <header>
-      <h2>{{ .Title }}</h2>
-      <div>logged in as {{ .Username }}</div>
+  <body id="screen-wrapper" class="min-h-screen bg-zinc-900 text-neutral-50">
+    <header
+      class="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-6"
+    >
+      <h2 class="text-2xl font-bold text-amber-500">{{ .Title }}</h2>
+      <div class="text-sm text-zinc-400">logged in as {{ .Username }}</div>
       <div>
-        <button id="logout-button" hx-post="/api/v1/auth/logout" hx-swap="none">
+        <button
+          id="logout-button"
+          class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600"
+          hx-post="/api/v1/auth/logout"
+          hx-swap="none"
+        >
           Log Out
         </button>
         <script>
@@ -40,12 +47,16 @@
             }
           });
         </script>
-        <div id="logout-error"></div>
+        <div
+          id="logout-error"
+          class="mt-2 text-right text-sm font-medium text-red-500"
+        ></div>
       </div>
     </header>
-    <main>
+    <main class="mx-auto w-full max-w-5xl p-6">
       <div
         id="server-list"
+        class="flex flex-col gap-4"
         hx-get="/api/v1/servers"
         hx-trigger="every 5s"
         hx-headers='{"Accept": "text/html"}'
