@@ -20,6 +20,176 @@ func newTestManager(t *testing.T) *Manager {
 	return NewManager(store, []byte("testsecret"))
 }
 
+func TestLoginRedirect_NoToken(t *testing.T) {
+	mgr := newTestManager(t)
+
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.False(t, called)
+	assert.Equal(t, "/login", rec.Header().Get("Location"))
+}
+
+func TestLoginRedirect_ExpiredToken(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, -60*time.Minute)
+	require.NoError(t, err)
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.False(t, called)
+	assert.Equal(t, "/login", rec.Header().Get("Location"))
+}
+
+func TestLoginRedirect_UnknownUser(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	require.NoError(t, mgr.store.CreateUser(ctx, "bob", "secret123", false))
+	user, err := mgr.store.GetUserByUsername(ctx, "bob")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, mgr.store.DeleteUser(ctx, "bob"))
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.False(t, called)
+	assert.Equal(t, "/login", rec.Header().Get("Location"))
+}
+
+func TestLoginRedirect_Suspended(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	require.NoError(t, mgr.store.CreateUser(ctx, "bob", "secret123", false))
+	user, err := mgr.store.GetUserByUsername(ctx, "bob")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, mgr.store.SuspendUser(ctx, "bob"))
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.False(t, called)
+	assert.Contains(t, rec.Body.String(), "account suspended")
+}
+
+func TestLoginRedirect_MustChangePassword(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	require.NoError(t, mgr.store.CreateUser(ctx, "bob", "secret123", false))
+	user, err := mgr.store.GetUserByUsername(ctx, "bob")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, mgr.store.ResetPassword(ctx, "bob", "mustchange"))
+
+	var called bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/servers", http.NoBody)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.False(t, called)
+	assert.Equal(t, "/login", rec.Header().Get("Location"))
+}
+
+func TestLoginRedirect_Valid(t *testing.T) {
+	mgr := newTestManager(t)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.store.UpdatePassword(ctx, "admin", "updatedhash"))
+
+	user, err := mgr.store.GetUserByUsername(ctx, "admin")
+	require.NoError(t, err)
+	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	require.NoError(t, err)
+
+	var called bool
+	var gotUser *db.User
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		gotUser = UserFromContext(r.Context())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
+	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
+	rec := httptest.NewRecorder()
+
+	handler := mgr.LoginRedirect(next)
+	handler.ServeHTTP(rec, req)
+
+	assert.True(t, called)
+	require.NotNil(t, gotUser)
+	assert.Equal(t, user.Username, gotUser.Username)
+}
+
 func TestMiddleware_MustChangePassword(t *testing.T) {
 	mgr := newTestManager(t)
 	ctx := context.Background()

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/CodeZeroSugar/ofan/internal/api"
 	"github.com/CodeZeroSugar/ofan/internal/auth"
@@ -102,6 +103,33 @@ func (s *apiSuite) TestServersRoute() {
 	s.Assert().Equal(http.StatusFound, s.rr.Code)
 }
 
+func (s *apiSuite) TestServersRoute_SuspendedPage() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	cfg := loadConfig()
+	cfg.RootPass = "testpass"
+	srv, _ := newServer("8080", s.cfg, &cfg, cancel)
+	s.s = srv
+
+	s.Require().NoError(s.cfg.Store.CreateUser(ctx, "bob", "secret123", false))
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "bob")
+	s.Require().NoError(err)
+	token, err := s.cfg.Auth.IssueJWT(user.ID, "bob", 60*time.Minute)
+	s.Require().NoError(err)
+
+	req := s.reqWithUser(user, http.MethodGet, "/servers", "{}")
+	auth.SetSessionCookie(s.rr, req, token)
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+
+	s.Require().NoError(err, s.cfg.Store.SuspendUser(ctx, "bob"))
+
+	s.rr = httptest.NewRecorder()
+	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
+
+	s.Assert().Equal(http.StatusForbidden, s.rr.Code)
+}
+
 func (s *apiSuite) TestLoginRoute() {
 	_, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -115,6 +143,31 @@ func (s *apiSuite) TestLoginRoute() {
 	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
 
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
+}
+
+func (s *apiSuite) TestLogoutRoute() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	cfg := loadConfig()
+	cfg.RootPass = "testpass"
+	srv, _ := newServer("8080", s.cfg, &cfg, cancel)
+	s.s = srv
+
+	user, err := s.cfg.Store.GetUserByUsername(ctx, "admin")
+	s.Require().NoError(err)
+	badToken, err := s.cfg.Auth.IssueJWT(1, "admin", -60*time.Minute)
+	s.Require().NoError(err)
+
+	req := s.reqWithUser(user, http.MethodPost, "/api/v1/auth/logout", "{}")
+	req.Header.Set("Authorization", "Bearer "+badToken)
+
+	s.rr = httptest.NewRecorder()
+	s.s.httpServer.Handler.ServeHTTP(s.rr, req)
+	cookie := s.rr.Header().Get("Set-Cookie")
+
+	s.Assert().Equal(http.StatusOK, s.rr.Code)
+	s.Assert().Equal("", s.rr.Header().Get("Bearer"))
+	s.Assert().Equal("ofan_session=; Path=/; Max-Age=0", cookie)
 }
 
 func (s *apiSuite) TestRedirectRoute() {
