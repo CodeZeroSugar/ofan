@@ -36,3 +36,7 @@ func (c *ApiConfig) HandlerServersPage(w http.ResponseWriter, r *http.Request) {
 
 	respondWithHTML(w, http.StatusOK, c.Templates, "servers", data)
 }
+
+func (c *ApiConfig) HandlerCreatePage(w http.ResponseWriter, r *http.Request) {
+	respondWithHTML(w, http.StatusOK, c.Templates, "create", "{}")
+}

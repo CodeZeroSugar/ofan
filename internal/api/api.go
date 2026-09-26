@@ -84,16 +84,14 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		c.Poke()
 	}
 
-	data := provisionResponse{
-		ServerName:    opts.Name,
-		Status:        "provisioning",
-		ServerOptions: opts,
+	msg := messageJson{
+		Message: "creating server '%s'",
 	}
 
 	if wantsHTML(r) {
-		respondWithHTML(w, http.StatusAccepted, c.Templates, "create", data)
+		respondWithHTML(w, http.StatusAccepted, c.Templates, "message", msg)
 	} else {
-		respondWithJson(w, http.StatusAccepted, data)
+		respondWithJson(w, http.StatusAccepted, msg)
 	}
 }
 
