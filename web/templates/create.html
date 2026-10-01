@@ -1,5 +1,119 @@
 {{define "create"}}
-<div>server_name={{.ServerName}}</div>
-<div>status={{.Status}}</div>
-<div>server_options={{.ServerOptions}}</div>
+<!doctype html>
+<html lang="en">
+  <head>
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/json-enc.js"></script>
+    <link href="/static/css/output.css" rel="stylesheet" />
+    <title>Create New Server</title>
+  </head>
+  <body
+    id="screen-wrapper"
+    class="flex flex-col min-h-screen items-center bg-zinc-900 text-neutral-50"
+  >
+    <a
+      href="/servers"
+      class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block"
+    >
+      Back
+    </a>
+    <div
+      id="create-container"
+      class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8 flex flex-col gap-6"
+    >
+      <h2 class="text-2xl font-bold">Create New Server</h2>
+      <form
+        id="create-server-form"
+        class="flex flex-col gap-4"
+        hx-post="/api/v1/servers/create"
+        hx-ext="json-enc"
+        hx-swap="none"
+      >
+        <div>
+          <label for="name">Server Name</label>
+          <input
+            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            type="text"
+            id="name"
+            name="name"
+            required
+          />
+        </div>
+        <div>
+          <label for="password">Server Password</label>
+          <input
+            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            type="password"
+            id="password"
+            name="password"
+            minlength="5"
+            required
+          />
+        </div>
+        <div>
+          <label for="world_name">World Name</label>
+          <input
+            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            type="text"
+            id="world-name"
+            name="world_name"
+            required
+          />
+        </div>
+        <div>
+          <label for="port">Port</label>
+          <input
+            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            type="number"
+            id="port"
+            name="port"
+            required
+          />
+        </div>
+        <div>
+          Public
+          <input type="hidden" name="public" value="false" />
+          <input type="checkbox" name="public" value="true" />
+        </div>
+
+        <div class="relative pb-6">
+          <button
+            type="submit"
+            class="w-full bg-zinc-500 hover:bg-zinc-600 font-medium py-2 rounded-lg transition-colors"
+          >
+            Submit
+          </button>
+          <div
+            id="create-server-error"
+            class="absolute left-0 right-0 text-center text-sm text-red-500 font-medium mt-4"
+          ></div>
+          <div
+            id="create-server-message"
+            class="absolute left-0 right-0 text-center text-sm text-red-500 font-medium mt-4"
+          ></div>
+          <script>
+            document.body.addEventListener(
+              "htmx:afterRequest",
+              function (event) {
+                const reqElement = event.detail.elt;
+                if (!reqElement) return;
+                const responseStatus = event.detail.xhr.status;
+                if (reqElement.id === "create-server-form") {
+                  if (responseStatus !== 202) {
+                    document.getElementById("create-server-error").textContent =
+                      event.detail.xhr.responseText;
+                    return;
+                  }
+                  window.location.href = "/servers";
+                } else {
+                  return;
+                }
+              },
+            );
+          </script>
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
 {{end}}

@@ -22,6 +22,11 @@
         >
           Log Out
         </button>
+        <a
+          href="/servers/new"
+          class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block"
+          >Create</a
+        >
         <script>
           document.body.addEventListener("htmx:afterRequest", function (event) {
             const reqElement = event.detail.elt;
