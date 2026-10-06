@@ -28,9 +28,6 @@
       <form
         id="create-server-form"
         class="flex flex-col gap-4"
-        hx-post="/api/v1/servers/create"
-        hx-ext="json-enc"
-        hx-swap="none"
       >
         <div>
           <label for="name" class="mb-1 block text-sm font-medium text-zinc-400">Server Name</label>
@@ -60,9 +57,8 @@
           </label>
         </div>
         <div id="custom-config" class="flex flex-col gap-4">
-          <p class="text-sm text-zinc-400">
-            Custom configuration support is coming — placeholders below show
-            the shape. Check the box above to create a default server now.
+          <p id="custom-note" class="text-sm text-zinc-400">
+            Untouched fields use the server defaults.
           </p>
           <div>
             <h3 class="text-lg font-semibold">Core</h3>
@@ -283,39 +279,136 @@
             class="absolute left-0 right-0 text-center text-sm text-red-500 font-medium mt-4"
           ></div>
           <script>
-            document.body.addEventListener(
-              "htmx:afterRequest",
-              function (event) {
-                const reqElement = event.detail.elt;
-                if (!reqElement) return;
-                const responseStatus = event.detail.xhr.status;
-                if (reqElement.id === "create-server-form") {
-                  if (responseStatus !== 202) {
-                    document.getElementById("create-server-error").textContent =
-                      event.detail.xhr.responseText;
+            document
+              .getElementById("create-server-form")
+              .addEventListener("submit", function (event) {
+                event.preventDefault();
+                var formName = document.getElementById("name").value;
+                var formPassword = document.getElementById("password").value;
+                var payload = { name: formName, password: formPassword };
+                if (!useDefaultsBox.checked && serverDefaults) {
+                  var d = serverDefaults;
+                  payload.server_opts = {
+                    config: {
+                      core_settings: {
+                        server_name: formName,
+                        world_name: textOr("world-name", d.core_settings.world_name),
+                        server_pass: formPassword,
+                        server_port: numOr("server-port", d.core_settings.server_port),
+                        server_public: document.getElementById("server-public").checked,
+                      },
+                      access_control: {
+                        admin_list_ids: textOr("admin-ids", d.access_control.admin_list_ids),
+                        banned_list_ids: textOr("banned-ids", d.access_control.banned_list_ids),
+                        permitted_list_ids: textOr("permitted-ids", d.access_control.permitted_list_ids),
+                      },
+                      maintenance: {
+                        update_cron: textOr("update-cron", d.maintenance.update_cron),
+                        update_if_idle: document.getElementById("update-if-idle").checked,
+                        restart_cron: textOr("restart-cron", d.maintenance.restart_cron),
+                        restart_if_idle: document.getElementById("restart-if-idle").checked,
+                        backups: document.getElementById("backups").checked,
+                        backups_if_idle: document.getElementById("backups-if-idle").checked,
+                        backups_cron: textOr("backups-cron", d.maintenance.backups_cron),
+                        backups_max_age: numOr("backups-max-age", d.maintenance.backups_max_age),
+                        backups_max_count: numOr("backups-max-count", d.maintenance.backups_max_count),
+                      },
+                      mods: {
+                        valheim_plus: document.getElementById("valheim-plus").checked,
+                        bepinex: document.getElementById("bepinex").checked,
+                      },
+                      system_settings: {
+                        time_zone: textOr("time-zone", d.system_settings.time_zone),
+                        puid: numOr("puid", d.system_settings.puid),
+                        pgid: numOr("pgid", d.system_settings.pgid),
+                      },
+                    },
+                  };
+                }
+                fetch("/api/v1/servers/create", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                  },
+                  body: JSON.stringify(payload),
+                }).then(function (resp) {
+                  if (resp.status !== 202) {
+                    resp.text().then(function (text) {
+                      document.getElementById("create-server-error").textContent = text;
+                    });
                     return;
                   }
                   window.location.href = "/servers";
-                } else {
-                  return;
-                }
-              },
-            );
+                });
+              });
+            function textOr(id, fallback) {
+              var v = document.getElementById(id).value;
+              return v === "" || v === undefined ? fallback : v;
+            }
+            function numOr(id, fallback) {
+              var v = parseInt(document.getElementById(id).value, 10);
+              return isNaN(v) ? fallback : v;
+            }
           </script>
           <script>
             var useDefaultsBox = document.getElementById("use-defaults");
             var customConfig = document.getElementById("custom-config");
             var submitBtn = document.getElementById("create-submit");
+            var serverDefaults = null;
+            var defaultsLoaded = false;
             function syncCustomMode() {
               var custom = !useDefaultsBox.checked;
               customConfig.classList.toggle("hidden", !custom);
-              submitBtn.disabled = custom;
-              submitBtn.classList.toggle("opacity-50", custom);
+              submitBtn.disabled = custom && !defaultsLoaded;
+              submitBtn.classList.toggle("opacity-50", custom && !defaultsLoaded);
               customConfig.querySelectorAll("input").forEach(function (el) {
                 el.disabled = !custom;
               });
             }
             useDefaultsBox.addEventListener("change", syncCustomMode);
+            function setText(id, value) {
+              var el = document.getElementById(id);
+              if (el.value === "" && value !== undefined && value !== null)
+                el.value = value;
+            }
+            function setBox(id, value) {
+              document.getElementById(id).checked = !!value;
+            }
+            fetch("/api/v1/servers/defaults", {
+              headers: { Accept: "application/json" },
+            })
+              .then(function (resp) {
+                if (!resp.ok) throw new Error("defaults unavailable");
+                return resp.json();
+              })
+              .then(function (cfg) {
+                serverDefaults = cfg;
+                setText("world-name", cfg.core_settings.world_name);
+                setText("server-port", cfg.core_settings.server_port);
+                setBox("server-public", cfg.core_settings.server_public);
+                setText("admin-ids", cfg.access_control.admin_list_ids);
+                setText("banned-ids", cfg.access_control.banned_list_ids);
+                setText("permitted-ids", cfg.access_control.permitted_list_ids);
+                setText("update-cron", cfg.maintenance.update_cron);
+                setBox("update-if-idle", cfg.maintenance.update_if_idle);
+                setText("restart-cron", cfg.maintenance.restart_cron);
+                setBox("restart-if-idle", cfg.maintenance.restart_if_idle);
+                setBox("backups", cfg.maintenance.backups);
+                setBox("backups-if-idle", cfg.maintenance.backups_if_idle);
+                setText("backups-cron", cfg.maintenance.backups_cron);
+                setText("backups-max-age", cfg.maintenance.backups_max_age);
+                setText("backups-max-count", cfg.maintenance.backups_max_count);
+                setText("time-zone", cfg.system_settings.time_zone);
+                setText("puid", cfg.system_settings.puid);
+                setText("pgid", cfg.system_settings.pgid);
+                defaultsLoaded = true;
+                syncCustomMode();
+              })
+              .catch(function () {
+                document.getElementById("custom-note").textContent =
+                  "Could not load server defaults — default configuration only for now.";
+              });
             syncCustomMode();
             var valheimPlusBox = document.getElementById("valheim-plus");
             var bepinexBox = document.getElementById("bepinex");
