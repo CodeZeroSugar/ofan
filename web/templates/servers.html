@@ -50,6 +50,51 @@
             }
           });
         </script>
+        <script>
+          document.body.addEventListener("click", function (event) {
+            var toggle = event.target.closest(".kebab-toggle");
+            if (toggle) {
+              var card = toggle.closest(".server-card");
+              var menu = card.querySelector(".card-menu");
+              var willShow = menu.classList.contains("hidden");
+              document.querySelectorAll(".card-menu").forEach(function (m) {
+                m.classList.add("hidden");
+              });
+              if (willShow) menu.classList.remove("hidden");
+              return;
+            }
+            var del = event.target.closest(".menu-delete");
+            if (del) {
+              var delCard = del.closest(".server-card");
+              delCard.querySelector(".card-menu").classList.add("hidden");
+              delCard.querySelector(".confirm-row").classList.remove("hidden");
+              return;
+            }
+            var cancel = event.target.closest(".confirm-no");
+            if (cancel) {
+              var cancelCard = cancel.closest(".server-card");
+              cancelCard.querySelector(".confirm-row").classList.add("hidden");
+              return;
+            }
+          });
+          document.body.addEventListener("htmx:afterRequest", function (event) {
+            var reqElement = event.detail.elt;
+            if (
+              !reqElement ||
+              !reqElement.classList ||
+              !reqElement.classList.contains("confirm-row")
+            )
+              return;
+            var card = reqElement.closest(".server-card");
+            if (event.detail.xhr.status !== 202) {
+              card.querySelector(".card-error").textContent =
+                event.detail.xhr.responseText;
+              return;
+            }
+            card.classList.add("opacity-50");
+            card.querySelector(".confirm-row").classList.add("hidden");
+          });
+        </script>
         <div
           id="logout-error"
           class="mt-2 text-right text-sm font-medium text-red-500"

@@ -85,7 +85,7 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 	}
 
 	msg := messageJson{
-		Message: "creating server '%s'",
+		Message: fmt.Sprintf("creating server '%s'", opts.Name),
 	}
 
 	if wantsHTML(r) {
