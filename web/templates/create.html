@@ -2,6 +2,8 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="/static/htmx.min.js"></script>
     <script src="/static/json-enc.js"></script>
     <link href="/static/css/output.css" rel="stylesheet" />
@@ -11,9 +13,10 @@
     id="screen-wrapper"
     class="flex flex-col min-h-screen items-center bg-zinc-900 text-neutral-50"
   >
+    <div class="flex w-full max-w-md flex-col gap-4">
     <a
       href="/servers"
-      class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block"
+      class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block self-start"
     >
       Back
     </a>
@@ -30,9 +33,9 @@
         hx-swap="none"
       >
         <div>
-          <label for="name">Server Name</label>
+          <label for="name" class="mb-1 block text-sm font-medium text-zinc-400">Server Name</label>
           <input
-            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
             type="text"
             id="name"
             name="name"
@@ -40,9 +43,9 @@
           />
         </div>
         <div>
-          <label for="password">Server Password</label>
+          <label for="password" class="mb-1 block text-sm font-medium text-zinc-400">Server Password</label>
           <input
-            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
             type="password"
             id="password"
             name="password"
@@ -54,7 +57,7 @@
         <div>
           <label for="world_name">World Name</label>
           <input
-            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
             type="text"
             id="world-name"
             name="world_name"
@@ -64,7 +67,7 @@
         <div>
           <label for="port">Port</label>
           <input
-            class="w-full px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
             type="number"
             id="port"
             name="port"
@@ -81,7 +84,7 @@
         <div class="relative pb-6">
           <button
             type="submit"
-            class="w-full bg-zinc-500 hover:bg-zinc-600 font-medium py-2 rounded-lg transition-colors"
+            class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
           >
             Submit
           </button>
@@ -115,6 +118,7 @@
           </script>
         </div>
       </form>
+    </div>
     </div>
   </body>
 </html>

@@ -9,13 +9,13 @@ stop, and delete instances of multiplayer/co-op video games that require a serve
 to host cooperative play sessions. Currently this project is focused on the
 survival game Valheim.
 
-The role of agents in this project is purely for guidance and code review. Agents
-are forbidden from writing to production files in this project. Agents assisting in this project will act as a Senior Developer/Code Reviewer:
+The role of agents in this project is split by layer. Agents own the **frontend** (`web/templates/`, `web/static/`): design, markup, styling, and client-side behavior — liberated to make frontend design and functionality decisions without asking. Agents assisting in this project will act as a Senior Developer/Code Reviewer for everything else:
 they will provide guidance, answer questions, help with project direction and ideas. The agents will avoid providing Go code snippets and complete files/functions.
 Exception: concrete Tailwind CSS utility class names and minimal HTML `class` attribute examples for `web/templates/` and `web/static/css/` are allowed when guiding UI slices. The agents may provide function signatures, data structures, steps for
-implementing the code, but WILL NOT write the code to files themselves.
+implementing the code, but WILL NOT write Go code or backend tests to files themselves — backend functionality and testing remain the user's.
+Stop-and-notify rule: if a frontend task is impossible due to a backend limitation, or needs backend functionality that should exist, the agent stops frontend progress and notifies the user instead of working around it in the client.
 
-The only files the agents may contribute to directly are AGENTS.md, TODO.md, and README.md
+The files the agents may contribute to directly are AGENTS.md, TODO.md, README.md, plus the owned frontend: `web/templates/`, `web/static/`, and `scripts/smoke.sh` (test script, user-run). Go source and backend tests stay with the user.
 
 **Canonical memory**: AGENTS.md is the repo-committed canonical record of
 decisions, rules, and roadmap. TODO.md is gitignored local scratch — task state
@@ -119,7 +119,7 @@ Agents do not write code; the lifecycle is a guide/review loop:
    Tailwind utility names and minimal `class="..."` examples for UI work are allowed.
 3. **Review** — verify user-written code against the Locked domain rules and the
    Review checklist. Recommend test cases for gaps (see Testing philosophy).
-4. **Closeout** — only AGENTS.md, TODO.md, and README.md are ever written. Keep the roadmap
+4. **Closeout** — owned frontend files plus AGENTS.md, TODO.md, and README.md are writable. Go source and backend tests are never written. Keep the roadmap
    current as decisions land or change.
 
 ### Review checklist (rule → check)
