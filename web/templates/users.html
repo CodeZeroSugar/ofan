@@ -1,0 +1,399 @@
+{{define "users"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/json-enc.js"></script>
+    <link href="/static/css/output.css" rel="stylesheet" />
+    <title>Users</title>
+  </head>
+  <body id="screen-wrapper" class="min-h-screen bg-zinc-900 text-neutral-50">
+    <div class="flex min-h-screen flex-col md:flex-row">
+      <aside
+        class="flex w-full flex-row flex-wrap items-center gap-2 border-b border-zinc-800 p-4 md:min-h-screen md:w-56 md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:p-6"
+      >
+        <div
+          class="mb-0 mr-auto text-xl font-extrabold text-amber-500 md:mb-4 md:mr-0 md:text-2xl"
+        >
+          Ofan
+        </div>
+        <a
+          href="/servers"
+          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
+          >Servers</a
+        >
+        <a
+          href="/admin/users"
+          class="rounded-lg bg-zinc-800 px-3 py-2 text-sm font-medium text-amber-500"
+          >Users</a
+        >
+        <div
+          class="ml-auto flex items-center gap-2 md:ml-0 md:mt-auto md:flex-col md:items-stretch"
+        >
+          <button
+            id="logout-button"
+            class="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+            hx-post="/api/v1/auth/logout"
+            hx-swap="none"
+          >
+            Log Out
+          </button>
+          <div
+            id="logout-error"
+            class="mt-2 text-right text-sm font-medium text-red-500"
+          ></div>
+        </div>
+        <script>
+          document.body.addEventListener("htmx:afterRequest", function (event) {
+            const reqElement = event.detail.elt;
+            if (!reqElement) return;
+            const responseStatus = event.detail.xhr.status;
+            if (reqElement.id === "logout-button") {
+              if (responseStatus !== 200) {
+                window.location.href = "/login";
+                return;
+              }
+              let data = {};
+              try {
+                data = JSON.parse(event.detail.xhr.responseText);
+              } catch (error) {
+                window.location.href = "/login";
+                return;
+              }
+              if (data.message === "logout successful") {
+                window.location.href = "/login";
+              }
+            }
+          });
+        </script>
+      </aside>
+      <div class="flex-1">
+        <main class="mx-auto w-full max-w-5xl p-6">
+          <h2 class="mb-4 text-2xl font-bold text-amber-500">Users</h2>
+          <div
+            class="mb-4 w-full max-w-md rounded-2xl bg-zinc-700 p-6 shadow-xl"
+          >
+            <h3 class="mb-4 text-lg font-semibold">Create User</h3>
+            <form id="create-user-form" class="flex flex-col gap-4">
+              <div>
+                <label
+                  for="new-username"
+                  class="mb-1 block text-sm font-medium text-zinc-400"
+                  >Username</label
+                >
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="new-username"
+                  name="username"
+                  required
+                />
+              </div>
+              <div>
+                <label
+                  for="new-password"
+                  class="mb-1 block text-sm font-medium text-zinc-400"
+                  >Password</label
+                >
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="password"
+                  id="new-password"
+                  name="password"
+                  required
+                />
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300">
+                  <input type="checkbox" id="new-is-admin" name="is_admin" />
+                  Admin
+                </label>
+              </div>
+              <button
+                type="submit"
+                class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+              >
+                Create
+              </button>
+              <div
+                id="create-user-message"
+                class="text-center text-sm font-medium"
+              ></div>
+            </form>
+          </div>
+          <div
+            id="users-status"
+            class="mb-4 text-center text-sm font-medium text-red-500"
+          ></div>
+          <div class="rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="text-zinc-400">
+                  <th class="px-2 py-2 font-medium">Username</th>
+                  <th class="px-2 py-2 font-medium">Role</th>
+                  <th class="px-2 py-2 font-medium">Status</th>
+                  <th class="px-2 py-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+          <div class="mt-4 w-full max-w-md rounded-2xl bg-zinc-700 p-6 shadow-xl">
+            <h3 class="mb-1 text-lg font-semibold">Purge Orphaned Storage</h3>
+            <p class="mb-4 text-sm text-zinc-400">
+              Root only. Deletes the persistent volume of a server with no
+              database row. Enter the exact server name.
+            </p>
+            <form id="purge-storage-form" class="flex flex-col gap-4">
+              <div>
+                <label
+                  for="purge-name"
+                  class="mb-1 block text-sm font-medium text-zinc-400"
+                  >Server Name</label
+                >
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="purge-name"
+                  name="server_name"
+                  required
+                />
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300">
+                  <input type="checkbox" id="purge-confirm" />
+                  I understand this permanently deletes stored data
+                </label>
+              </div>
+              <button
+                type="submit"
+                class="w-full bg-red-700 hover:bg-red-600 text-neutral-50 font-medium py-2 rounded-lg transition-colors"
+              >
+                Purge Storage
+              </button>
+              <div
+                id="purge-message"
+                class="text-center text-sm font-medium"
+              ></div>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script>
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+      function usersStatus(text, ok) {
+        var el = document.getElementById("users-status");
+        el.textContent = text;
+        el.classList.toggle("text-red-500", !ok);
+        el.classList.toggle("text-emerald-400", !!ok);
+      }
+      function roleBadge(u) {
+        if (u.is_root)
+          return '<span class="rounded-full bg-amber-800 px-3 py-1 text-xs font-semibold text-amber-100">root</span>';
+        if (u.is_admin)
+          return '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200">admin</span>';
+        return '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-400">user</span>';
+      }
+      function statusBadge(u) {
+        var parts = [];
+        parts.push(
+          u.is_suspended
+            ? '<span class="rounded-full bg-red-800 px-3 py-1 text-xs font-semibold text-red-100">suspended</span>'
+            : '<span class="rounded-full bg-emerald-800 px-3 py-1 text-xs font-semibold text-emerald-100">active</span>',
+        );
+        if (u.must_change_password)
+          parts.push(
+            '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200">must change password</span>',
+          );
+        return parts.join(" ");
+      }
+      function actionButton(action, username, label) {
+        return (
+          '<button type="button" class="user-action rounded-lg bg-zinc-700 px-3 py-1 text-xs font-medium transition-colors hover:bg-zinc-600" data-action="' +
+          action +
+          '" data-username="' +
+          escapeHtml(username) +
+          '">' +
+          label +
+          "</button>"
+        );
+      }
+      function renderUsers(users) {
+        var body = document.getElementById("users-body");
+        if (!users.length) {
+          body.innerHTML =
+            '<tr><td colspan="4" class="px-2 py-4 text-center text-zinc-400">No users</td></tr>';
+          return;
+        }
+        body.innerHTML = users
+          .map(function (u) {
+            var suspendLabel = u.is_suspended ? "Unsuspend" : "Suspend";
+            var suspendAction = u.is_suspended ? "unsuspend" : "suspend";
+            var roleLabel = u.is_admin ? "Demote" : "Promote";
+            var roleAction = u.is_admin ? "demote" : "promote";
+            return (
+              "<tr class=\"border-t border-zinc-700\">" +
+              '<td class="px-2 py-2 text-neutral-50">' +
+              escapeHtml(u.username) +
+              "</td>" +
+              "<td>" +
+              roleBadge(u) +
+              "</td>" +
+              "<td>" +
+              statusBadge(u) +
+              "</td>" +
+              '<td><div class="flex flex-wrap items-center gap-2">' +
+              actionButton(suspendAction, u.username, suspendLabel) +
+              actionButton(roleAction, u.username, roleLabel) +
+              actionButton("delete", u.username, "Delete") +
+              '<input type="password" placeholder="Temp password" class="reset-pw w-32 bg-zinc-800 px-2 py-1 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />' +
+              actionButton("reset", u.username, "Reset PW") +
+              "</div></td>" +
+              "</tr>"
+            );
+          })
+          .join("");
+      }
+      function loadUsers() {
+        fetch("/api/v1/admin/users", { headers: { Accept: "application/json" } })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("failed to load users");
+            return resp.json();
+          })
+          .then(function (users) {
+            renderUsers(users || []);
+          })
+          .catch(function (err) {
+            usersStatus(err.message, false);
+          });
+      }
+      function userAction(action, username, body, okStatus) {
+        var path =
+          action === "reset"
+            ? "/api/v1/admin/users/reset_password"
+            : "/api/v1/admin/users/" + action + "/" + encodeURIComponent(username);
+        fetch(path, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        }).then(function (resp) {
+          if (resp.status !== okStatus) {
+            resp.text().then(function (text) {
+              usersStatus(username + ": " + text, false);
+            });
+            return;
+          }
+          usersStatus(username + ": " + action + " ok", true);
+          loadUsers();
+        });
+      }
+      document
+        .getElementById("users-body")
+        .addEventListener("click", function (event) {
+          var btn = event.target.closest(".user-action");
+          if (!btn) return;
+          var action = btn.getAttribute("data-action");
+          var username = btn.getAttribute("data-username");
+          if (action === "delete" && !btn.getAttribute("data-armed")) {
+            btn.setAttribute("data-armed", "1");
+            btn.textContent = "Sure?";
+            return;
+          }
+          if (action === "reset") {
+            var row = btn.closest("tr");
+            var pwInput = row.querySelector(".reset-pw");
+            var temp = pwInput ? pwInput.value : "";
+            if (!temp) {
+              usersStatus("enter a temp password first", false);
+              return;
+            }
+            userAction("reset", username, {
+              username: username,
+              temp_password: temp,
+            }, 200);
+            return;
+          }
+          userAction(action, username, undefined, 200);
+        });
+      document
+        .getElementById("create-user-form")
+        .addEventListener("submit", function (event) {          event.preventDefault();
+          var msg = document.getElementById("create-user-message");
+          fetch("/api/v1/admin/users/create", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              username: document.getElementById("new-username").value,
+              password: document.getElementById("new-password").value,
+              is_admin: document.getElementById("new-is-admin").checked,
+            }),
+          }).then(function (resp) {
+            if (resp.status !== 201) {
+              resp.text().then(function (text) {
+                msg.textContent = text;
+                msg.classList.add("text-red-500");
+              });
+              return;
+            }
+            document.getElementById("create-user-form").reset();
+            msg.textContent = "user created";
+            msg.classList.remove("text-red-500");
+            msg.classList.add("text-emerald-400");
+            loadUsers();
+          });
+        });
+      document
+        .getElementById("purge-storage-form")
+        .addEventListener("submit", function (event) {
+          event.preventDefault();
+          var msg = document.getElementById("purge-message");
+          var name = document.getElementById("purge-name").value.trim();
+          if (!document.getElementById("purge-confirm").checked) {
+            msg.textContent = "confirm the checkbox first";
+            msg.classList.add("text-red-500");
+            return;
+          }
+          fetch(
+            "/api/v1/system/purge-storage/" + encodeURIComponent(name),
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({ confirm: true }),
+            },
+          ).then(function (resp) {
+            if (resp.status !== 200) {
+              resp.text().then(function (text) {
+                msg.textContent = text;
+                msg.classList.add("text-red-500");
+              });
+              return;
+            }
+            document.getElementById("purge-storage-form").reset();
+            msg.textContent = "storage purged for '" + name + "'";
+            msg.classList.remove("text-red-500");
+            msg.classList.add("text-emerald-400");
+          });
+        });
+      loadUsers();
+    </script>
+  </body>
+</html>
+{{end}}
