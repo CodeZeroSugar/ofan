@@ -53,36 +53,222 @@
             required
           />
         </div>
-        <!--
         <div>
-          <label for="world_name">World Name</label>
-          <input
-            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
-            type="text"
-            id="world-name"
-            name="world_name"
-            required
-          />
+          <label class="flex items-center gap-2 text-sm text-zinc-300">
+            <input type="checkbox" id="use-defaults" />
+            Use default configuration
+          </label>
         </div>
-        <div>
-          <label for="port">Port</label>
-          <input
-            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
-            type="number"
-            id="port"
-            name="port"
-            required
-          />
+        <div id="custom-config" class="flex flex-col gap-4">
+          <p class="text-sm text-zinc-400">
+            Custom configuration support is coming — placeholders below show
+            the shape. Check the box above to create a default server now.
+          </p>
+          <div>
+            <h3 class="text-lg font-semibold">Core</h3>
+          </div>
+          <div>
+            <label for="world-name" class="mb-1 block text-sm font-medium text-zinc-400">World Name</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="world-name"
+              name="world_name"
+              placeholder="Dedicated"
+              title="Valheim world name. Frozen after creation — changing it later requires recreating the server."
+            />
+          </div>
+          <div>
+            <label for="server-port" class="mb-1 block text-sm font-medium text-zinc-400">Server Port</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="number"
+              id="server-port"
+              name="server_port"
+              placeholder="2456"
+              title="UDP game port (1-65534). Frozen after creation — changing it later requires recreating the server."
+            />
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="Whether the server is listed publicly.">
+              <input type="checkbox" id="server-public" name="server_public" value="true" />
+              Public server
+            </label>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">Access Control</h3>
+          </div>
+          <div>
+            <label for="admin-ids" class="mb-1 block text-sm font-medium text-zinc-400">Admin IDs</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="admin-ids"
+              name="admin_list_ids"
+              placeholder="SteamID64, comma-separated"
+              title="SteamID64 values of admins, comma-separated. Empty means no one."
+            />
+          </div>
+          <div>
+            <label for="banned-ids" class="mb-1 block text-sm font-medium text-zinc-400">Banned IDs</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="banned-ids"
+              name="banned_list_ids"
+              placeholder="SteamID64, comma-separated"
+              title="SteamID64 values of banned players, comma-separated. Empty means no one."
+            />
+          </div>
+          <div>
+            <label for="permitted-ids" class="mb-1 block text-sm font-medium text-zinc-400">Permitted IDs</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="permitted-ids"
+              name="permitted_list_ids"
+              placeholder="SteamID64, comma-separated"
+              title="SteamID64 allowlist. Empty means everyone may join."
+            />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">Maintenance</h3>
+          </div>
+          <div>
+            <label for="update-cron" class="mb-1 block text-sm font-medium text-zinc-400">Update Schedule</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="update-cron"
+              name="update_cron"
+              placeholder="*/15 * * * *"
+              title="Cron schedule for checking game updates, e.g. every 15 minutes."
+            />
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only run scheduled updates when no players are online.">
+              <input type="checkbox" id="update-if-idle" name="update_if_idle" value="true" checked />
+              Update only when idle
+            </label>
+          </div>
+          <div>
+            <label for="restart-cron" class="mb-1 block text-sm font-medium text-zinc-400">Restart Schedule</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="restart-cron"
+              name="restart_cron"
+              placeholder="10 5 * * *"
+              title="Cron schedule for scheduled restarts, e.g. daily at 05:10."
+            />
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only restart on schedule when no players are online.">
+              <input type="checkbox" id="restart-if-idle" name="restart_if_idle" value="true" checked />
+              Restart only when idle
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="Take automatic world backups.">
+              <input type="checkbox" id="backups" name="backups" value="true" checked />
+              Automatic backups
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only take backups when no players are online.">
+              <input type="checkbox" id="backups-if-idle" name="backups_if_idle" value="true" checked />
+              Back up only when idle
+            </label>
+          </div>
+          <div>
+            <label for="backups-cron" class="mb-1 block text-sm font-medium text-zinc-400">Backup Schedule</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="backups-cron"
+              name="backups_cron"
+              placeholder="5 * * * *"
+              title="Cron schedule for automatic backups, e.g. hourly at minute 5."
+            />
+          </div>
+          <div>
+            <label for="backups-max-age" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Age</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="number"
+              id="backups-max-age"
+              name="backups_max_age"
+              placeholder="3"
+              title="Oldest backup age to retain. Older backups are pruned."
+            />
+          </div>
+          <div>
+            <label for="backups-max-count" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Count</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="number"
+              id="backups-max-count"
+              name="backups_max_count"
+              placeholder="e.g. 10"
+              title="Maximum number of backups to keep. Oldest are pruned first."
+            />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">Mods</h3>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="ValheimPlus server mod. Mutually exclusive with BepInEx.">
+              <input type="checkbox" id="valheim-plus" name="valheim_plus" value="true" />
+              ValheimPlus
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-zinc-300" title="BepInEx mod framework. Mutually exclusive with ValheimPlus.">
+              <input type="checkbox" id="bepinex" name="bepinex" value="true" />
+              BepInEx
+            </label>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">System</h3>
+          </div>
+          <div>
+            <label for="time-zone" class="mb-1 block text-sm font-medium text-zinc-400">Time Zone</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="text"
+              id="time-zone"
+              name="time_zone"
+              placeholder="Etc/UTC"
+              title="IANA time zone used for schedules and logs, e.g. America/Chicago."
+            />
+          </div>
+          <div>
+            <label for="puid" class="mb-1 block text-sm font-medium text-zinc-400">PUID</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="number"
+              id="puid"
+              name="puid"
+              placeholder="0"
+              title="Linux user ID the server runs as. 0 means root."
+            />
+          </div>
+          <div>
+            <label for="pgid" class="mb-1 block text-sm font-medium text-zinc-400">PGID</label>
+            <input
+              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              type="number"
+              id="pgid"
+              name="pgid"
+              placeholder="0"
+              title="Linux group ID the server runs as. 0 means root."
+            />
+          </div>
         </div>
-        <div>
-          Public
-          <input type="hidden" name="public" value="false" />
-          <input type="checkbox" name="public" value="true" />
-        </div>
-        -->
 
         <div class="relative pb-6">
           <button
+            id="create-submit"
             type="submit"
             class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
           >
@@ -115,6 +301,30 @@
                 }
               },
             );
+          </script>
+          <script>
+            var useDefaultsBox = document.getElementById("use-defaults");
+            var customConfig = document.getElementById("custom-config");
+            var submitBtn = document.getElementById("create-submit");
+            function syncCustomMode() {
+              var custom = !useDefaultsBox.checked;
+              customConfig.classList.toggle("hidden", !custom);
+              submitBtn.disabled = custom;
+              submitBtn.classList.toggle("opacity-50", custom);
+              customConfig.querySelectorAll("input").forEach(function (el) {
+                el.disabled = !custom;
+              });
+            }
+            useDefaultsBox.addEventListener("change", syncCustomMode);
+            syncCustomMode();
+            var valheimPlusBox = document.getElementById("valheim-plus");
+            var bepinexBox = document.getElementById("bepinex");
+            valheimPlusBox.addEventListener("change", function () {
+              if (valheimPlusBox.checked) bepinexBox.checked = false;
+            });
+            bepinexBox.addEventListener("change", function () {
+              if (bepinexBox.checked) valheimPlusBox.checked = false;
+            });
           </script>
         </div>
       </form>
