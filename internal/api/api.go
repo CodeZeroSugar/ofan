@@ -130,7 +130,7 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if req.DeleteStorage && (userCtx.Username != srvRec.Owner && !userCtx.IsRoot) {
+	if bool(req.DeleteStorage) && (userCtx.Username != srvRec.Owner && !userCtx.IsRoot) {
 		if userCtx.IsAdmin {
 			http.Error(w, "must transfer ownership first", http.StatusForbidden)
 			return
@@ -139,7 +139,7 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err = c.Store.MarkDeleting(r.Context(), serverName, req.DeleteStorage); err != nil {
+	if err = c.Store.MarkDeleting(r.Context(), serverName, bool(req.DeleteStorage)); err != nil {
 		if errors.Is(err, db.ErrServerNotFound) {
 			http.Error(w, fmt.Sprintf("attempted to mark server '%s' for deletion, but it does not exist", serverName), http.StatusNotFound)
 			return
@@ -162,7 +162,7 @@ func (c *ApiConfig) HandlerDeleteGameServer(w http.ResponseWriter, r *http.Reque
 	resp := DeleteServerResponse{
 		ServerName:    serverName,
 		Status:        "deleting",
-		StoragePurged: req.DeleteStorage,
+		StoragePurged: bool(req.DeleteStorage),
 	}
 	if wantsHTML(r) {
 		respondWithHTML(w, http.StatusAccepted, c.Templates, "delete", resp)

@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
@@ -50,5 +53,38 @@ func (s *CreateGameServer) Validate() error {
 }
 
 type DeleteServerRequest struct {
-	DeleteStorage bool `json:"delete_storage"`
+	DeleteStorage TolerantBool `json:"delete_storage"`
+}
+
+type TolerantBool bool
+
+func (tb *TolerantBool) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if bytes.Equal(b, []byte("null")) {
+		*tb = false
+		return nil
+	}
+
+	var val bool
+	if err := json.Unmarshal(b, &val); err == nil {
+		*tb = TolerantBool(val)
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("tolerant bool: expected bool or string, got %s", b)
+	}
+	lower := strings.ToLower(strings.TrimSpace(s))
+
+	switch lower {
+	case "1", "t", "true", "yes", "on":
+		*tb = true
+		return nil
+	case "0", "f", "false", "no", "off":
+		*tb = false
+		return nil
+	default:
+		return fmt.Errorf("tolerant bool: invalid value %q", s)
+	}
 }
