@@ -33,6 +33,10 @@ func (s *CreateGameServer) Validate() error {
 		return errors.New("server name is required")
 	}
 
+	if s.Name == "defaults" {
+		return errors.New("invalid server name")
+	}
+
 	matches := re.MatchString(s.Name)
 	if !matches || len(s.Name) > 63 {
 		return fmt.Errorf("'%s' is not DNS-1123 regex compliant (lowercase alphanumeric + hyphens, max 63 characters)", s.Name)

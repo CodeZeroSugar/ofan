@@ -546,3 +546,7 @@ func (c *ApiConfig) HandlerUpdateGameServerConfig(w http.ResponseWriter, r *http
 		respondWithJson(w, http.StatusOK, msg)
 	}
 }
+
+func (c *ApiConfig) HandlerGetGameServerDefaults(w http.ResponseWriter, r *http.Request) {
+	respondWithJson(w, http.StatusOK, k8s.DefaultValheimConfig("", ""))
+}
