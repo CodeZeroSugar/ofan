@@ -108,6 +108,20 @@
             if (cancel) {
               document.getElementById("delete-confirm").classList.add("hidden");
               document.getElementById("delete-confirm-error").textContent = "";
+              document.getElementById("transfer-bar").classList.add("hidden");
+              document.getElementById("transfer-error").textContent = "";
+              return;
+            }
+            var xfer = event.target.closest(".menu-transfer");
+            if (xfer) {
+              var xferName = xfer.getAttribute("data-server");
+              document.getElementById("transfer-name").textContent = xferName;
+              document.getElementById("transfer-error").textContent = "";
+              var xferForm = document.getElementById("transfer-form");
+              xferForm.setAttribute("data-server", xferName);
+              xferForm.reset();
+              xfer.closest(".server-card").querySelector(".card-menu").classList.add("hidden");
+              document.getElementById("transfer-bar").classList.remove("hidden");
               return;
             }
           });
@@ -151,8 +165,7 @@
               (!reqElement.classList.contains("menu-start") &&
                 !reqElement.classList.contains("menu-stop"))
             )
-              return;
-            var actionError = document.getElementById("action-error");
+              return;var actionError = document.getElementById("action-error");
             var actionCard = reqElement.closest(".server-card");
             if (event.detail.xhr.status !== 200) {
               actionError.textContent = event.detail.xhr.responseText;
@@ -160,6 +173,39 @@
             }
             actionError.textContent = "";
             if (actionCard) actionCard.classList.add("opacity-50");
+          });
+        </script>
+        <script>
+          document.body.addEventListener("submit", function (event) {
+            var form = event.target;
+            if (!form || form.id !== "transfer-form") return;
+            event.preventDefault();
+            var serverName = form.getAttribute("data-server") || "";
+            var newOwner = document
+              .getElementById("transfer-new-owner")
+              .value.trim();
+            if (!serverName || !newOwner) return;
+            fetch("/api/v1/servers/" + serverName + "/transfer", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({ new_owner: newOwner }),
+            }).then(function (resp) {
+              if (resp.status !== 200) {
+                resp.text().then(function (text) {
+                  document.getElementById("transfer-error").textContent =
+                    text;
+                });
+                return;
+              }
+              document.getElementById("transfer-bar").classList.add("hidden");
+              var card = document.querySelector(
+                '.server-card[data-server="' + serverName + '"]',
+              );
+              if (card) card.classList.add("opacity-50");
+            });
           });
         </script>
       </aside>
@@ -213,6 +259,49 @@
               <div
                 id="delete-confirm-error"
                 class="mt-2 text-sm font-medium text-red-500"
+              ></div>
+            </form>
+          </div>
+          <div
+            id="transfer-bar"
+            class="hidden mb-4 rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow"
+          >
+            <div class="text-sm text-zinc-400">
+              Transfer server
+              <span id="transfer-name" class="font-semibold text-neutral-50"></span>
+              to a new owner. Transferring away removes it from your list.
+            </div>
+            <form id="transfer-form" class="mt-3 flex flex-col gap-4">
+              <div>
+                <label
+                  for="transfer-new-owner"
+                  class="mb-1 block text-sm font-medium text-zinc-400"
+                  >New Owner Username</label
+                >
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="transfer-new-owner"
+                  required
+                />
+              </div>
+              <div class="flex gap-2">
+                <button
+                  type="submit"
+                  class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-amber-400"
+                >
+                  Transfer
+                </button>
+                <button
+                  type="button"
+                  class="confirm-no rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div
+                id="transfer-error"
+                class="text-sm font-medium text-red-500"
               ></div>
             </form>
           </div>
