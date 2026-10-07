@@ -140,6 +140,13 @@
               <tbody id="users-body"></tbody>
             </table>
           </div>
+          <div class="mt-4 rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow">
+            <h3 class="mb-1 text-lg font-semibold">Orphaned Storage</h3>
+            <p class="mb-4 text-sm text-zinc-400">
+              Volumes with no server row. Root only.
+            </p>
+            <div id="orphan-list" class="flex flex-col gap-2"></div>
+          </div>
           <div class="mt-4 w-full max-w-md rounded-2xl bg-zinc-700 p-6 shadow-xl">
             <h3 class="mb-1 text-lg font-semibold">Purge Orphaned Storage</h3>
             <p class="mb-4 text-sm text-zinc-400">
@@ -263,8 +270,7 @@
           })
           .join("");
       }
-      function loadUsers() {
-        fetch("/api/v1/admin/users", { headers: { Accept: "application/json" } })
+      function loadUsers() {        fetch("/api/v1/admin/users", { headers: { Accept: "application/json" } })
           .then(function (resp) {
             if (!resp.ok) throw new Error("failed to load users");
             return resp.json();
@@ -276,6 +282,80 @@
             usersStatus(err.message, false);
           });
       }
+      function renderOrphans(names) {
+        var list = document.getElementById("orphan-list");
+        if (!names.length) {
+          list.innerHTML =
+            '<div class="text-sm text-zinc-400">No orphaned storage</div>';
+          return;
+        }
+        list.innerHTML = names
+          .map(function (name) {
+            return (
+              '<div class="flex items-center justify-between gap-2">' +
+              '<span class="text-sm text-neutral-50">' +
+              escapeHtml(name) +
+              "</span>" +
+              '<button type="button" class="orphan-purge rounded-lg bg-red-700 px-3 py-1 text-xs font-medium transition-colors hover:bg-red-600" data-server="' +
+              escapeHtml(name) +
+              '">Purge</button>' +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+      function loadOrphans() {
+        fetch("/api/v1/system/orphaned-storage", {
+          headers: { Accept: "application/json" },
+        })
+          .then(function (resp) {
+            if (resp.status === 403) {
+              document.getElementById("orphan-list").innerHTML =
+                '<div class="text-sm text-zinc-400">Root only.</div>';
+              return null;
+            }
+            if (!resp.ok) throw new Error("failed to load orphaned storage");
+            return resp.json();
+          })
+          .then(function (names) {
+            if (names) renderOrphans(names);
+          })
+          .catch(function (err) {
+            usersStatus(err.message, false);
+          });
+      }
+      document
+        .getElementById("orphan-list")
+        .addEventListener("click", function (event) {
+          var btn = event.target.closest(".orphan-purge");
+          if (!btn) return;
+          var serverName = btn.getAttribute("data-server");
+          if (!btn.getAttribute("data-armed")) {
+            btn.setAttribute("data-armed", "1");
+            btn.textContent = "Sure?";
+            return;
+          }
+          fetch(
+            "/api/v1/system/purge-storage/" + encodeURIComponent(serverName),
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({ confirm: true }),
+            },
+          ).then(function (resp) {
+            if (resp.status !== 200) {
+              resp.text().then(function (text) {
+                usersStatus(serverName + ": " + text, false);
+              });
+              return;
+            }
+            usersStatus("storage purged for '" + serverName + "'", true);
+            loadOrphans();
+          });
+        });
       function userAction(action, username, body, okStatus) {
         var path =
           action === "reset"
@@ -390,9 +470,11 @@
             msg.textContent = "storage purged for '" + name + "'";
             msg.classList.remove("text-red-500");
             msg.classList.add("text-emerald-400");
+            loadOrphans();
           });
         });
       loadUsers();
+      loadOrphans();
     </script>
   </body>
 </html>

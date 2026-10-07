@@ -60,9 +60,10 @@ Hard architectural contracts. A reviewer must flag any change that violates
 these. These are decisions, not suggestions.
 
 - **Declarative controller model** — DB = desired state, cluster = actual state
-  (registry), controller converges. Handlers make **zero k8s calls**; they
-  mutate the `servers` row and `Poke()`. The lone documented exception is
-  `HandlerDeletePVC` (orphaned storage has no row to converge).
+  (registry), controller converges. Handlers make **zero state-changing k8s
+  calls**; they mutate the `servers` row and `Poke()`. The documented exceptions
+  are `HandlerDeletePVC` (orphaned storage has no row to converge) and the
+  read-only `HandlerListOrphanedStorage` (PVC listing only, no mutation).
 - **Ownership is DB-only** — `servers.owner` FK → `users.username`. No ownership
   labels in k8s. `Owner` lives on the row / `ServerView`, never on
   `ServerState`.
@@ -129,7 +130,7 @@ reference the rule numbers in Locked domain rules.
 
 | # | Rule | When reviewing, verify |
 |---|------|------------------------|
-| 1 | Handlers make zero k8s calls | No `Clientset`/`Registry` mutation in handlers except `HandlerDeletePVC` (documented exception). Handlers mutate the row + `Poke()`. |
+| 1 | Handlers make zero state-changing k8s calls | No `Clientset`/`Registry` mutation in handlers except `HandlerDeletePVC` and read-only `HandlerListOrphanedStorage` (documented exceptions). Handlers mutate the row + `Poke()`. |
 | 2 | DB = desired, cluster = actual | New state transitions route through `desired_state` + reconcile; nothing sets k8s replicas outside `convergeRow`/`ensureReplicas`. |
 | 3 | Ownership is DB-only | `Owner` never added to `ServerState`; ownership reads come from the `servers` row via `GetServer`. No ownership labels in k8s. |
 | 4 | Delete = tombstone | Delete paths set `desired_state='deleting'` (+ `purge_storage`); no direct k8s delete except via `convergeRow` → `DeleteAll`. |

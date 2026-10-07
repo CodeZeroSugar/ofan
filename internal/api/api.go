@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -549,4 +550,34 @@ func (c *ApiConfig) HandlerUpdateGameServerConfig(w http.ResponseWriter, r *http
 
 func (c *ApiConfig) HandlerGetGameServerDefaults(w http.ResponseWriter, r *http.Request) {
 	respondWithJson(w, http.StatusOK, k8s.DefaultValheimConfig("", ""))
+}
+
+func (c *ApiConfig) HandlerListOrphanedStorage(w http.ResponseWriter, r *http.Request) {
+	volumeList, err := c.Clientset.CoreV1().PersistentVolumeClaims(c.Namespace).List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		log.Printf("failed to list orphaned PVCs: %s", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+	srvCfgs, err := c.Store.ListServerConfigs(r.Context())
+	if err != nil {
+		log.Printf("failed to get server configs from database: %s", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+	srvNames := make([]string, 0)
+	for _, cfg := range srvCfgs {
+		srvNames = append(srvNames, cfg.Name)
+	}
+	orphanedNames := make([]string, 0)
+	for _, v := range volumeList.Items {
+		label, _ := v.Labels[k8s.LabelManagedBy]
+		if label == k8s.ManagedByOfan {
+			srvName := strings.TrimSuffix(v.Name, "-pvc")
+			if !slices.Contains(srvNames, srvName) {
+				orphanedNames = append(orphanedNames, srvName)
+			}
+		}
+	}
+	respondWithJson(w, http.StatusOK, orphanedNames)
 }
