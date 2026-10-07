@@ -352,8 +352,11 @@
               });
               return;
             }
+            var row = btn.closest("div");
+            if (row) row.remove();
             usersStatus("storage purged for '" + serverName + "'", true);
             loadOrphans();
+            setTimeout(loadOrphans, 3000);
           });
         });
       function userAction(action, username, body, okStatus) {
