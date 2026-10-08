@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="/static/htmx.min.js"></script>
     <script src="/static/json-enc.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link href="/static/css/output.css" rel="stylesheet" />
     <title>Create New Server</title>
   </head>
@@ -13,7 +15,7 @@
     <div class="flex min-h-screen flex-col md:flex-row">
       {{template "sidebar" .}}
       <div class="flex flex-1 flex-col items-center p-6">
-    <div class="flex w-full max-w-md flex-col gap-4">
+    <div class="flex w-full max-w-3xl flex-col gap-4">
     <a
       href="/servers"
       class="btn-secondary self-start"
@@ -22,7 +24,7 @@
     </a>
     <div
       id="create-container"
-      class="w-full max-w-md card p-8 flex flex-col gap-6"
+      class="w-full max-w-3xl card p-8 flex flex-col gap-6"
     >
       <h2 class="text-2xl font-bold">Create New Server</h2>
       <form
@@ -60,9 +62,9 @@
           <p id="custom-note" class="text-sm text-zinc-400">
             Untouched fields use the server defaults.
           </p>
-          <div>
-            <h3 class="text-lg font-semibold">Core</h3>
-          </div>
+          <details open class="group section-card md:col-span-2">
+<summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">Core<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
+<div class="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label for="world-name" class="label">World Name</label>
             <input
@@ -91,9 +93,10 @@
               Public server
             </label>
           </div>
-          <div>
-            <h3 class="text-lg font-semibold">Access Control</h3>
           </div>
+</details><details open class="group section-card md:col-span-2">
+<summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">Access Control<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
+<div class="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label for="admin-ids" class="label">Admin IDs</label>
             <input
@@ -127,9 +130,10 @@
               title="SteamID64 allowlist. Empty means everyone may join."
             />
           </div>
-          <div>
-            <h3 class="text-lg font-semibold">Maintenance</h3>
           </div>
+</details><details open class="group section-card md:col-span-2">
+<summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">Maintenance<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
+<div class="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label for="update-cron" class="label">Update Schedule</label>
             <input
@@ -209,9 +213,10 @@
               title="Maximum number of backups to keep. Oldest are pruned first."
             />
           </div>
-          <div>
-            <h3 class="text-lg font-semibold">Mods</h3>
           </div>
+</details><details open class="group section-card md:col-span-2">
+<summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">Mods<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
+<div class="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label class="flex items-center gap-2 text-sm text-zinc-300" title="ValheimPlus server mod. Mutually exclusive with BepInEx.">
               <input type="checkbox" id="valheim-plus" name="valheim_plus" value="true" />
@@ -224,9 +229,10 @@
               BepInEx
             </label>
           </div>
-          <div>
-            <h3 class="text-lg font-semibold">System</h3>
           </div>
+</details><details open class="group section-card md:col-span-2">
+<summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">System<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
+<div class="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label for="time-zone" class="label">Time Zone</label>
             <input
@@ -261,6 +267,7 @@
             />
           </div>
         </div>
+</details></div>
 
         <div class="relative pb-6">
           <button
@@ -325,6 +332,7 @@
                     },
                   };
                 }
+                ofan.busy(document.getElementById("create-submit"), true);
                 fetch("/api/v1/servers/create", {
                   method: "POST",
                   headers: {
@@ -333,6 +341,7 @@
                   },
                   body: JSON.stringify(payload),
                 }).then(function (resp) {
+                  ofan.busy(document.getElementById("create-submit"), false);
                   if (resp.status !== 202) {
                     resp.text().then(function (text) {
                       document.getElementById("create-server-error").textContent = text;

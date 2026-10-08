@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="/static/htmx.min.js"></script>
     <script src="/static/json-enc.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link href="/static/css/output.css" rel="stylesheet" />
     <title>{{ .Title }}</title>
   </head>
@@ -15,7 +17,7 @@
       <div class="flex-1">
         <main class="mx-auto w-full max-w-5xl p-6">
           <div class="mb-4 flex items-center justify-between gap-4">
-            <h2 class="text-2xl font-bold text-amber-500">{{ .Title }}</h2>
+            <h2 class="text-2xl font-bold text-neutral-50">{{ .Title }}</h2>
             <a
               href="/servers/new"
               class="btn-primary"
@@ -157,172 +159,221 @@
       </div>
     </div>
   <script>
-          document.body.addEventListener("click", function (event) {
-            function hideMenu() {
-              document.getElementById("card-menu").classList.add("hidden");
-            }
-            var toggle = event.target.closest(".kebab-toggle");
-            if (toggle) {
-              var menu = document.getElementById("card-menu");
-              var wasHidden = menu.classList.contains("hidden");
-              hideMenu();
-              if (!wasHidden) return;
-              var serverName = toggle.getAttribute("data-server");
-              var status = toggle.getAttribute("data-status");
-              menu.querySelector(".menu-delete").setAttribute("data-server", serverName);
-              menu.querySelector(".menu-transfer").setAttribute("data-server", serverName);
-              menu.querySelector(".menu-edit").setAttribute("href", "/servers/" + serverName);
-              menu.querySelector(".menu-start").setAttribute("data-server", serverName);
-              menu.querySelector(".menu-stop").setAttribute("data-server", serverName);
-              menu.querySelector(".menu-start").classList.toggle("hidden", status !== "stopped");
-              menu.querySelector(".menu-stop").classList.toggle("hidden", status !== "running");
-              var rect = toggle.getBoundingClientRect();
-              menu.classList.remove("hidden");
-              var menuWidth = menu.offsetWidth;
-              menu.style.left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)) + "px";
-              menu.style.top = rect.bottom + 4 + "px";
-              return;
-            }
-            if (event.target.closest("#card-menu") === null) hideMenu();
-            var del = event.target.closest(".menu-delete");
-            if (del) {
-              var serverName = del.getAttribute("data-server");
-              var bar = document.getElementById("delete-confirm");
-              var form = document.getElementById("delete-confirm-form");
-              document
-                .getElementById("delete-confirm-name")
-                .textContent = serverName;
-              document.getElementById("delete-confirm-error").textContent = "";
-              form.setAttribute("data-server", serverName);
-              form.setAttribute(
-                "hx-post",
-                "/api/v1/servers/" + serverName + "/delete",
-              );
-              document.getElementById("card-menu").classList.add("hidden");
-              bar.classList.remove("hidden");
-              return;
-            }
-            var cancel = event.target.closest(".confirm-no");
-            if (cancel) {
-              document.getElementById("delete-confirm").classList.add("hidden");
-              document.getElementById("delete-confirm-error").textContent = "";
-              document.getElementById("transfer-bar").classList.add("hidden");
-              document.getElementById("transfer-error").textContent = "";
-              return;
-            }
-            var xfer = event.target.closest(".menu-transfer");            if (xfer) {
-              var xferName = xfer.getAttribute("data-server");
-              document.getElementById("transfer-name").textContent = xferName;
-              document.getElementById("transfer-error").textContent = "";
-              var xferForm = document.getElementById("transfer-form");
-              xferForm.setAttribute("data-server", xferName);
-              xferForm.reset();
-              document.getElementById("card-menu").classList.add("hidden");
-              document.getElementById("transfer-bar").classList.remove("hidden");
-              return;
-            }
-            var power = event.target.closest(".menu-start, .menu-stop");
-            if (power) {
-              var powerName = power.getAttribute("data-server");
-              var action = power.classList.contains("menu-start") ? "start" : "stop";
-              document.getElementById("card-menu").classList.add("hidden");
-              fetch("/api/v1/servers/" + powerName + "/" + action, {
-                method: "POST",
-                headers: { Accept: "application/json" },
-              }).then(function (resp) {
-                var actionError = document.getElementById("action-error");
-                var actionCard = document.querySelector(
-                  '.server-card[data-server="' + powerName + '"]',
-                );
-                if (resp.status !== 200) {
-                  resp.text().then(function (text) {
-                    actionError.textContent = text;
-                  });
-                  return;
-                }
-                actionError.textContent = "";
-                if (actionCard) actionCard.classList.add("opacity-50");
-              });
-              return;
-            }
-          });
-          document.body.addEventListener(
-            "htmx:configRequest",
-            function (event) {
-              var reqElement = event.detail.elt;
-              if (
-                !reqElement ||
-                reqElement.id !== "delete-confirm-form" ||
-                !reqElement.getAttribute("data-server")
-              )
-                return;
-              event.detail.path =
-                "/api/v1/servers/" +
-                reqElement.getAttribute("data-server") +
-                "/delete";
-            },
-          );
-          document.body.addEventListener("htmx:afterRequest", function (event) {
-            var reqElement = event.detail.elt;
-            if (!reqElement || reqElement.id !== "delete-confirm-form") return;var serverName = reqElement.getAttribute("data-server") || "";
-            var card = serverName
-              ? document.querySelector(
-                  '.server-card[data-server="' + serverName + '"]',
-                )
-              : null;
-            if (event.detail.xhr.status !== 202) {
-              document.getElementById("delete-confirm-error").textContent =
-                event.detail.xhr.responseText;
-              return;
-            }
-            document.getElementById("delete-confirm").classList.add("hidden");
-            if (card) card.classList.add("opacity-50");
-          });
-          window.addEventListener("scroll", function () {
-            document.getElementById("card-menu").classList.add("hidden");
-          }, true);
-          window.addEventListener("resize", function () {
-            document.getElementById("card-menu").classList.add("hidden");
-          });
-          document.body.addEventListener("htmx:afterSwap", function (event) {
-            if (event.target && event.target.id === "server-list")
-              document.getElementById("card-menu").classList.add("hidden");
-          });
-        </script>
-        <script>
-          document.body.addEventListener("submit", function (event) {
-            var form = event.target;
-            if (!form || form.id !== "transfer-form") return;
-            event.preventDefault();
-            var serverName = form.getAttribute("data-server") || "";
-            var newOwner = document
-              .getElementById("transfer-new-owner")
-              .value.trim();
-            if (!serverName || !newOwner) return;
-            fetch("/api/v1/servers/" + serverName + "/transfer", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              body: JSON.stringify({ new_owner: newOwner }),
-            }).then(function (resp) {
+    (function () {
+      var PENDING_MS = 60000;
+      var pending = {};
+      var menu = document.getElementById("card-menu");
+
+      function hideMenu() {
+        menu.classList.add("hidden");
+        document.querySelectorAll(".kebab-toggle").forEach(function (b) {
+          b.setAttribute("aria-expanded", "false");
+        });
+      }
+
+      function openMenu(toggle) {
+        var name = toggle.getAttribute("data-server");
+        var status = toggle.getAttribute("data-status");
+        menu.querySelector(".menu-delete").setAttribute("data-server", name);
+        menu.querySelector(".menu-transfer").setAttribute("data-server", name);
+        menu.querySelector(".menu-edit").setAttribute("href", "/servers/" + name);
+        menu.querySelector(".menu-start").setAttribute("data-server", name);
+        menu.querySelector(".menu-stop").setAttribute("data-server", name);
+        menu.querySelector(".menu-start").classList.toggle("hidden", status !== "stopped");
+        menu.querySelector(".menu-stop").classList.toggle("hidden", status !== "running");
+        var rect = toggle.getBoundingClientRect();
+        menu.classList.remove("hidden");
+        var width = menu.offsetWidth;
+        menu.style.left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)) + "px";
+        menu.style.top = rect.bottom + 4 + "px";
+        toggle.setAttribute("aria-expanded", "true");
+        var first = Array.prototype.find.call(menu.querySelectorAll("button, a"), function (el) {
+          return !el.classList.contains("hidden");
+        });
+        if (first) first.focus();
+      }
+
+      // Pending labels survive poll re-renders: applied after every list settle
+      // until the status reaches the expected value, the card disappears, or time runs out.
+      function setPending(name, label, expect, ms) {
+        pending[name] = { label: label, expect: expect, until: Date.now() + (ms || PENDING_MS) };
+        applyPending();
+      }
+
+      function applyPending() {
+        Object.keys(pending).forEach(function (name) {
+          var entry = pending[name];
+          var card = document.querySelector('.server-card[data-server="' + name + '"]');
+          if (
+            !card ||
+            Date.now() > entry.until ||
+            (entry.expect && card.getAttribute("data-status") === entry.expect)
+          ) {
+            delete pending[name];
+            return;
+          }
+          var pill = card.querySelector("[data-status-pill]");
+          if (pill) pill.textContent = entry.label;
+        });
+      }
+
+      document.body.addEventListener("htmx:afterSettle", function (event) {
+        if (event.target && event.target.id === "server-list") applyPending();
+      });
+      document.body.addEventListener("htmx:afterSwap", function (event) {
+        if (event.target && event.target.id === "server-list") hideMenu();
+      });
+
+      document.body.addEventListener("click", function (event) {
+        var toggle = event.target.closest(".kebab-toggle");
+        if (toggle) {
+          var wasHidden = menu.classList.contains("hidden");
+          hideMenu();
+          if (wasHidden) openMenu(toggle);
+          return;
+        }
+        if (event.target.closest("#card-menu") === null) hideMenu();
+
+        var del = event.target.closest(".menu-delete");
+        if (del) {
+          hideMenu();
+          var name = del.getAttribute("data-server");
+          var form = document.getElementById("delete-confirm-form");
+          document.getElementById("delete-confirm-name").textContent = name;
+          document.getElementById("delete-confirm-error").textContent = "";
+          form.setAttribute("data-server", name);
+          form.setAttribute("hx-post", "/api/v1/servers/" + name + "/delete");
+          document.getElementById("delete-confirm").classList.remove("hidden");
+          return;
+        }
+
+        var cancel = event.target.closest(".confirm-no");
+        if (cancel) {
+          document.getElementById("delete-confirm").classList.add("hidden");
+          document.getElementById("delete-confirm-error").textContent = "";
+          document.getElementById("transfer-bar").classList.add("hidden");
+          document.getElementById("transfer-error").textContent = "";
+          return;
+        }
+
+        var xfer = event.target.closest(".menu-transfer");
+        if (xfer) {
+          hideMenu();
+          var xferName = xfer.getAttribute("data-server");
+          document.getElementById("transfer-name").textContent = xferName;
+          document.getElementById("transfer-error").textContent = "";
+          var xferForm = document.getElementById("transfer-form");
+          xferForm.setAttribute("data-server", xferName);
+          xferForm.reset();
+          document.getElementById("transfer-bar").classList.remove("hidden");
+          document.getElementById("transfer-new-owner").focus();
+          return;
+        }
+
+        var power = event.target.closest(".menu-start, .menu-stop");
+        if (power) {
+          hideMenu();
+          var powerName = power.getAttribute("data-server");
+          var action = power.classList.contains("menu-start") ? "start" : "stop";
+          var actionError = document.getElementById("action-error");
+          fetch("/api/v1/servers/" + powerName + "/" + action, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then(function (resp) {
               if (resp.status !== 200) {
                 resp.text().then(function (text) {
-                  document.getElementById("transfer-error").textContent =
-                    text;
+                  actionError.textContent = text;
                 });
                 return;
               }
-              document.getElementById("transfer-bar").classList.add("hidden");
-              var card = document.querySelector(
-                '.server-card[data-server="' + serverName + '"]',
+              actionError.textContent = "";
+              setPending(
+                powerName,
+                action === "start" ? "Starting…" : "Stopping…",
+                action === "start" ? "running" : "stopped",
               );
-              if (card) card.classList.add("opacity-50");
+            })
+            .catch(function () {
+              actionError.textContent = "Could not reach the server.";
             });
+          return;
+        }
+      });
+
+      document.body.addEventListener("htmx:configRequest", function (event) {
+        var req = event.detail.elt;
+        if (!req || req.id !== "delete-confirm-form" || !req.getAttribute("data-server")) return;
+        event.detail.path = "/api/v1/servers/" + req.getAttribute("data-server") + "/delete";
+      });
+
+      document.body.addEventListener("htmx:beforeRequest", function (event) {
+        var req = event.detail.elt;
+        if (req && req.id === "delete-confirm-form") {
+          ofan.busy(req.querySelector('button[type="submit"]'), true);
+        }
+      });
+
+      document.body.addEventListener("htmx:afterRequest", function (event) {
+        var req = event.detail.elt;
+        if (!req || req.id !== "delete-confirm-form") return;
+        ofan.busy(req.querySelector('button[type="submit"]'), false);
+        var name = req.getAttribute("data-server") || "";
+        if (event.detail.xhr.status !== 202) {
+          document.getElementById("delete-confirm-error").textContent = event.detail.xhr.responseText;
+          return;
+        }
+        document.getElementById("delete-confirm").classList.add("hidden");
+        setPending(name, "Deleting…", "deleting");
+      });
+
+      document.body.addEventListener("submit", function (event) {
+        var form = event.target;
+        if (!form || form.id !== "transfer-form") return;
+        event.preventDefault();
+        var serverName = form.getAttribute("data-server") || "";
+        var newOwner = document.getElementById("transfer-new-owner").value.trim();
+        var errorEl = document.getElementById("transfer-error");
+        var submit = form.querySelector('button[type="submit"]');
+        if (!serverName || !newOwner) return;
+        ofan.busy(submit, true);
+        errorEl.textContent = "";
+        fetch("/api/v1/servers/" + serverName + "/transfer", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ new_owner: newOwner }),
+        })
+          .then(function (resp) {
+            ofan.busy(submit, false);
+            if (resp.status !== 200) {
+              resp.text().then(function (text) {
+                errorEl.textContent = text;
+              });
+              return;
+            }
+            document.getElementById("transfer-bar").classList.add("hidden");
+            ofan.toast("Ownership of " + serverName + " moved to " + newOwner, true);
+            setPending(serverName, "Transferring…", null, 8000);
+          })
+          .catch(function () {
+            ofan.busy(submit, false);
+            errorEl.textContent = "Could not reach the server.";
           });
-        </script>
-      
+      });
+
+      window.addEventListener("scroll", hideMenu, true);
+      window.addEventListener("resize", hideMenu);
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape" || menu.classList.contains("hidden")) return;
+        var opener = document.querySelector('.kebab-toggle[aria-expanded="true"]');
+        hideMenu();
+        if (opener) opener.focus();
+      });
+    })();
+  </script>
   </body>
 </html>
 {{end}}

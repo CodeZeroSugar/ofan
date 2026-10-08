@@ -5,6 +5,14 @@
     @apply rounded-xl border border-zinc-800 bg-zinc-800 shadow-lg;
   }
 
+  .section-card {
+    @apply rounded-xl border border-zinc-600 bg-zinc-800 p-5 shadow-2xl shadow-black/60;
+  }
+
+  .section-card-nested {
+    @apply rounded-xl border border-zinc-600 bg-zinc-900 p-5 shadow-lg shadow-black/50;
+  }
+
   .section-title {
     @apply mb-4 text-lg font-semibold text-neutral-50;
   }
@@ -15,6 +23,10 @@
 
   .label {
     @apply mb-1 block text-sm font-medium text-zinc-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
 
   .btn-primary {
@@ -30,7 +42,7 @@
   }
 
   .btn-danger-outline {
-    @apply inline-flex items-center justify-center rounded-lg border border-red-800 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-950;
+    @apply inline-flex items-center justify-center rounded-lg border border-red-800 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-sm {
@@ -49,4 +61,8 @@
     @apply bg-zinc-800 text-amber-400;
     box-shadow: inset 2px 0 0 #f59e0b;
   }
+}
+
+summary::-webkit-details-marker {
+  display: none;
 }

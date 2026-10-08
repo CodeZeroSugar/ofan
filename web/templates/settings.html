@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="/static/htmx.min.js"></script>
     <script src="/static/json-enc.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link href="/static/css/output.css" rel="stylesheet" />
     <title>{{ .Title }}</title>
   </head>
@@ -14,7 +16,7 @@
       {{template "sidebar" .}}
       <div class="flex-1">
         <main class="mx-auto w-full max-w-5xl p-6">
-          <h2 class="mb-4 text-2xl font-bold text-amber-500">{{ .Title }}</h2>
+          <h2 class="mb-4 text-2xl font-bold text-neutral-50">{{ .Title }}</h2>
           <div
             class="mb-4 w-full max-w-md card p-6"
           >
@@ -81,6 +83,7 @@
         .addEventListener("submit", function (event) {
           event.preventDefault();
           var msg = document.getElementById("change-password-message");
+          ofan.busy(document.querySelector('#change-password-form button[type="submit"]'), true);
           fetch("/api/v1/auth/password", {
             method: "POST",
             headers: {
@@ -91,6 +94,7 @@
               new_password: document.getElementById("new-password").value,
             }),
           }).then(function (resp) {
+            ofan.busy(document.querySelector('#change-password-form button[type="submit"]'), false);
             if (resp.status !== 200) {
               resp.text().then(function (text) {
                 msg.textContent = text;
@@ -100,6 +104,7 @@
               return;
             }
             document.getElementById("change-password-form").reset();
+            ofan.toast("Password changed", true);
             msg.textContent = "password changed";
             msg.classList.remove("text-red-500");
             msg.classList.add("text-emerald-400");

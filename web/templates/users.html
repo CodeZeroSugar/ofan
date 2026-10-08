@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="/static/htmx.min.js"></script>
     <script src="/static/json-enc.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link href="/static/css/output.css" rel="stylesheet" />
     <title>Admin</title>
   </head>
@@ -14,8 +16,13 @@
       {{template "sidebar" .}}
       <div class="flex-1">
         <main class="mx-auto w-full max-w-5xl p-6">
-          <h2 class="mb-4 text-2xl font-bold text-amber-500">Admin</h2>
-          <h3 class="section-title">User Management</h3>
+          <h2 class="mb-4 text-2xl font-bold text-neutral-50">Admin</h2>
+          <nav class="mb-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
+            <a href="#users" class="text-zinc-400 transition-colors hover:text-neutral-50">User management</a>
+            <a href="#storage" class="text-zinc-400 transition-colors hover:text-neutral-50">Storage</a>
+            <a href="#danger" class="text-red-400 transition-colors hover:text-red-300">Danger zone</a>
+          </nav>
+          <h3 id="users" class="section-title scroll-mt-6">User Management</h3>
           <div
             class="mb-4 w-full max-w-md card p-6"
           >
@@ -84,7 +91,7 @@
               <tbody id="users-body"></tbody>
             </table>
           </div>
-          <h3 class="mt-10 border-t border-zinc-800 pt-6 mb-4 text-lg font-semibold">Storage Management</h3>
+          <h3 id="storage" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title">Storage Management</h3>
           <div class="card p-5">
             <h4 class="mb-1 text-base font-semibold">Orphaned Storage</h4>
             <p class="mb-4 text-sm text-zinc-400">
@@ -131,7 +138,7 @@
               ></div>
             </form>
           </div>
-          <h3 class="mt-10 border-t border-zinc-800 pt-6 mb-4 text-lg font-semibold text-red-400">Danger Zone</h3>
+          <h3 id="danger" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title text-red-400">Danger Zone</h3>
           <div class="card border-red-900 p-5">
             <p class="mb-4 text-sm text-zinc-400">
               Root only. These actions cannot be undone.
@@ -140,11 +147,14 @@
               <div>
                 <button
                   type="button"
-                  id="reset-database"
+                  id="reset-database" disabled
                   class="btn-danger-outline"
                 >
                   Reset Database
-                </button>
+                
+                <div class="mt-3 max-w-xs">
+                  <input id="reset-confirm-text" type="text" autocomplete="off" placeholder="Type reset to enable" class="field" />
+                </div></button>
                 <p class="mt-1 text-sm text-zinc-400">
                   Wipes all users and servers, then re-creates the root
                   account (mandatory password change on next login). Game
@@ -175,42 +185,38 @@
       </div>
     </div>
     <script>
-      function escapeHtml(s) {
-        return String(s)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      }
+      var escapeHtml = ofan.escapeHtml;
+
       function usersStatus(text, ok) {
         var el = document.getElementById("users-status");
         el.textContent = text;
         el.classList.toggle("text-red-500", !ok);
         el.classList.toggle("text-emerald-400", !!ok);
       }
+
       function roleBadge(u) {
-        if (u.is_root)
-          return '<span class="rounded-full bg-amber-800 px-3 py-1 text-xs font-semibold text-amber-100">root</span>';
-        if (u.is_admin)
-          return '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200">admin</span>';
-        return '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-400">user</span>';
+        if (u.is_root) return '<span class="badge bg-amber-900 text-amber-100">root</span>';
+        if (u.is_admin) return '<span class="badge bg-zinc-700 text-zinc-200">admin</span>';
+        return '<span class="badge bg-zinc-800 text-zinc-400 ring-1 ring-inset ring-zinc-700">user</span>';
       }
+
       function statusBadge(u) {
         var parts = [];
         parts.push(
           u.is_suspended
-            ? '<span class="rounded-full bg-red-800 px-3 py-1 text-xs font-semibold text-red-100">suspended</span>'
-            : '<span class="rounded-full bg-emerald-800 px-3 py-1 text-xs font-semibold text-emerald-100">active</span>',
+            ? '<span class="badge bg-red-900 text-red-200">suspended</span>'
+            : '<span class="badge bg-emerald-900 text-emerald-200">active</span>',
         );
         if (u.must_change_password)
-          parts.push(
-            '<span class="rounded-full bg-zinc-700 px-3 py-1 text-xs font-semibold text-zinc-200">must change password</span>',
-          );
+          parts.push('<span class="badge bg-zinc-700 text-zinc-200">must change password</span>');
         return parts.join(" ");
       }
-      function actionButton(action, username, label) {
+
+      function menuButton(action, username, label, extraClass) {
         return (
-          '<button type="button" class="user-action btn-secondary btn-sm" data-action="' +
+          '<button type="button" class="user-action menu-item ' +
+          (extraClass || "") +
+          '" data-action="' +
           action +
           '" data-username="' +
           escapeHtml(username) +
@@ -219,43 +225,45 @@
           "</button>"
         );
       }
+
       function renderUsers(users) {
         var body = document.getElementById("users-body");
         if (!users.length) {
           body.innerHTML =
-            '<tr><td colspan="4" class="px-2 py-4 text-center text-zinc-400">No users</td></tr>';
+            '<tr><td colspan="4" class="px-2 py-6 text-center text-zinc-400">No users</td></tr>';
           return;
         }
         body.innerHTML = users
           .map(function (u) {
-            var suspendLabel = u.is_suspended ? "Unsuspend" : "Suspend";
-            var suspendAction = u.is_suspended ? "unsuspend" : "suspend";
-            var roleLabel = u.is_admin ? "Demote" : "Promote";
-            var roleAction = u.is_admin ? "demote" : "promote";
+            var suspend = u.is_suspended ? ["unsuspend", "Unsuspend"] : ["suspend", "Suspend"];
+            var role = u.is_admin ? ["demote", "Demote"] : ["promote", "Promote"];
             return (
-              "<tr class=\"border-t border-zinc-700\">" +
-              '<td class="px-2 py-2 text-neutral-50">' +
-              escapeHtml(u.username) +
+              '<tr class="border-t border-zinc-700">' +
+              '<td class="px-2 py-3 font-medium text-neutral-50">' + escapeHtml(u.username) + "</td>" +
+              "<td>" + roleBadge(u) + "</td>" +
+              '<td class="py-2">' + statusBadge(u) + "</td>" +
+              '<td class="px-2 py-3 text-right">' +
+              '<details class="relative inline-block text-left">' +
+              '<summary class="btn-secondary btn-sm cursor-pointer list-none select-none">Manage</summary>' +
+              '<div class="card absolute right-0 z-20 mt-2 flex w-60 flex-col gap-1 p-2 shadow-xl">' +
+              menuButton(suspend[0], u.username, suspend[1]) +
+              menuButton(role[0], u.username, role[1]) +
+              '<div class="mt-1 flex flex-col gap-2 border-t border-zinc-700 p-2">' +
+              '<input type="password" placeholder="Temp password" autocomplete="new-password" class="reset-pw field btn-sm" />' +
+              menuButton("reset", u.username, "Reset password") +
+              "</div>" +
+              menuButton("delete", u.username, "Delete", "text-red-300 hover:bg-red-950") +
+              "</div>" +
+              "</details>" +
               "</td>" +
-              "<td>" +
-              roleBadge(u) +
-              "</td>" +
-              "<td>" +
-              statusBadge(u) +
-              "</td>" +
-              '<td><div class="flex flex-wrap items-center gap-2">' +
-              actionButton(suspendAction, u.username, suspendLabel) +
-              actionButton(roleAction, u.username, roleLabel) +
-              actionButton("delete", u.username, "Delete") +
-              '<input type="password" placeholder="Temp password" class="reset-pw w-32 bg-zinc-800 px-2 py-1 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />' +
-              actionButton("reset", u.username, "Reset PW") +
-              "</div></td>" +
               "</tr>"
             );
           })
           .join("");
       }
-      function loadUsers() {        fetch("/api/v1/admin/users", { headers: { Accept: "application/json" } })
+
+      function loadUsers() {
+        fetch("/api/v1/admin/users", { headers: { Accept: "application/json" } })
           .then(function (resp) {
             if (!resp.ok) throw new Error("failed to load users");
             return resp.json();
@@ -267,20 +275,105 @@
             usersStatus(err.message, false);
           });
       }
+
+      function userAction(action, username, body) {
+        var path =
+          action === "reset"
+            ? "/api/v1/admin/users/reset_password"
+            : "/api/v1/admin/users/" + action + "/" + encodeURIComponent(username);
+        fetch(path, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        })
+          .then(function (resp) {
+            if (resp.status !== 200) {
+              resp.text().then(function (text) {
+                usersStatus(username + ": " + text, false);
+              });
+              return;
+            }
+            usersStatus("", true);
+            ofan.toast(username + ": " + action + " done", true);
+            loadUsers();
+          })
+          .catch(function () {
+            usersStatus("Could not reach the server.", false);
+          });
+      }
+
+      document.getElementById("users-body").addEventListener("click", function (event) {
+        var btn = event.target.closest(".user-action");
+        if (!btn) return;
+        var action = btn.getAttribute("data-action");
+        var username = btn.getAttribute("data-username");
+        if (action === "delete" && !ofan.arm(btn, "Click again to delete")) return;
+        if (action === "reset") {
+          var pw = btn.closest("tr").querySelector(".reset-pw");
+          var temp = pw ? pw.value : "";
+          if (!temp) {
+            usersStatus("enter a temp password first", false);
+            return;
+          }
+          userAction("reset", username, { username: username, temp_password: temp });
+          return;
+        }
+        userAction(action, username, undefined);
+      });
+
+      document.getElementById("create-user-form").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var msg = document.getElementById("create-user-message");
+        var submit = this.querySelector('button[type="submit"]');
+        var username = document.getElementById("new-username").value;
+        ofan.busy(submit, true);
+        fetch("/api/v1/admin/users/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            username: username,
+            password: document.getElementById("new-password").value,
+            is_admin: document.getElementById("new-is-admin").checked,
+          }),
+        })
+          .then(function (resp) {
+            ofan.busy(submit, false);
+            if (resp.status !== 201) {
+              resp.text().then(function (text) {
+                msg.textContent = text;
+                msg.className = "text-center text-sm font-medium text-red-500";
+              });
+              return;
+            }
+            document.getElementById("create-user-form").reset();
+            msg.textContent = "";
+            ofan.toast("User " + username + " created", true);
+            loadUsers();
+          })
+          .catch(function () {
+            ofan.busy(submit, false);
+            msg.textContent = "Could not reach the server.";
+            msg.className = "text-center text-sm font-medium text-red-500";
+          });
+      });
+
       function renderOrphans(names) {
         var list = document.getElementById("orphan-list");
         if (!names.length) {
-          list.innerHTML =
-            '<div class="text-sm text-zinc-400">No orphaned storage</div>';
+          list.innerHTML = '<div class="text-sm text-zinc-400">No orphaned storage</div>';
           return;
         }
         list.innerHTML = names
           .map(function (name) {
             return (
-              '<div class="flex items-center justify-between gap-2">' +
-              '<span class="text-sm text-neutral-50">' +
-              escapeHtml(name) +
-              "</span>" +
+              '<div class="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2">' +
+              '<span class="font-mono text-sm text-neutral-50">' + escapeHtml(name) + "</span>" +
               '<button type="button" class="orphan-purge btn-danger btn-sm" data-server="' +
               escapeHtml(name) +
               '">Purge</button>' +
@@ -289,10 +382,9 @@
           })
           .join("");
       }
+
       function loadOrphans() {
-        fetch("/api/v1/system/orphaned-storage", {
-          headers: { Accept: "application/json" },
-        })
+        fetch("/api/v1/system/orphaned-storage", { headers: { Accept: "application/json" } })
           .then(function (resp) {
             if (resp.status === 403) {
               document.getElementById("orphan-list").innerHTML =
@@ -309,28 +401,23 @@
             usersStatus(err.message, false);
           });
       }
-      document
-        .getElementById("orphan-list")
-        .addEventListener("click", function (event) {
-          var btn = event.target.closest(".orphan-purge");
-          if (!btn) return;
-          var serverName = btn.getAttribute("data-server");
-          if (!btn.getAttribute("data-armed")) {
-            btn.setAttribute("data-armed", "1");
-            btn.textContent = "Sure?";
-            return;
-          }
-          fetch(
-            "/api/v1/system/purge-storage/" + encodeURIComponent(serverName),
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              body: JSON.stringify({ confirm: true }),
-            },
-          ).then(function (resp) {
+
+      document.getElementById("orphan-list").addEventListener("click", function (event) {
+        var btn = event.target.closest(".orphan-purge");
+        if (!btn) return;
+        if (!ofan.arm(btn, "Confirm purge")) return;
+        var serverName = btn.getAttribute("data-server");
+        ofan.busy(btn, true);
+        fetch("/api/v1/system/purge-storage/" + encodeURIComponent(serverName), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ confirm: true }),
+        })
+          .then(function (resp) {
+            ofan.busy(btn, false);
             if (resp.status !== 200) {
               resp.text().then(function (text) {
                 usersStatus(serverName + ": " + text, false);
@@ -339,184 +426,118 @@
             }
             var row = btn.closest("div");
             if (row) row.remove();
-            usersStatus("storage purged for '" + serverName + "'", true);
+            usersStatus("", true);
+            ofan.toast("Storage purged for " + serverName, true);
             loadOrphans();
             setTimeout(loadOrphans, 3000);
+          })
+          .catch(function () {
+            ofan.busy(btn, false);
+            usersStatus("Could not reach the server.", false);
           });
-        });
-      function userAction(action, username, body, okStatus) {
-        var path =
-          action === "reset"
-            ? "/api/v1/admin/users/reset_password"
-            : "/api/v1/admin/users/" + action + "/" + encodeURIComponent(username);
-        fetch(path, {
+      });
+
+      document.getElementById("purge-storage-form").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var msg = document.getElementById("purge-message");
+        var submit = this.querySelector('button[type="submit"]');
+        var name = document.getElementById("purge-name").value.trim();
+        if (!document.getElementById("purge-confirm").checked) {
+          msg.textContent = "confirm the checkbox first";
+          msg.className = "text-center text-sm font-medium text-red-500";
+          return;
+        }
+        ofan.busy(submit, true);
+        fetch("/api/v1/system/purge-storage/" + encodeURIComponent(name), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        }).then(function (resp) {
-          if (resp.status !== okStatus) {
-            resp.text().then(function (text) {
-              usersStatus(username + ": " + text, false);
-            });
-            return;
-          }
-          usersStatus(username + ": " + action + " ok", true);
-          loadUsers();
-        });
-      }
-      document
-        .getElementById("users-body")
-        .addEventListener("click", function (event) {
-          var btn = event.target.closest(".user-action");
-          if (!btn) return;
-          var action = btn.getAttribute("data-action");
-          var username = btn.getAttribute("data-username");
-          if (action === "delete" && !btn.getAttribute("data-armed")) {
-            btn.setAttribute("data-armed", "1");
-            btn.textContent = "Sure?";
-            return;
-          }
-          if (action === "reset") {
-            var row = btn.closest("tr");
-            var pwInput = row.querySelector(".reset-pw");
-            var temp = pwInput ? pwInput.value : "";
-            if (!temp) {
-              usersStatus("enter a temp password first", false);
-              return;
-            }
-            userAction("reset", username, {
-              username: username,
-              temp_password: temp,
-            }, 200);
-            return;
-          }
-          userAction(action, username, undefined, 200);
-        });
-      document
-        .getElementById("create-user-form")
-        .addEventListener("submit", function (event) {          event.preventDefault();
-          var msg = document.getElementById("create-user-message");
-          fetch("/api/v1/admin/users/create", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              username: document.getElementById("new-username").value,
-              password: document.getElementById("new-password").value,
-              is_admin: document.getElementById("new-is-admin").checked,
-            }),
-          }).then(function (resp) {
-            if (resp.status !== 201) {
-              resp.text().then(function (text) {
-                msg.textContent = text;
-                msg.classList.add("text-red-500");
-              });
-              return;
-            }
-            document.getElementById("create-user-form").reset();
-            msg.textContent = "user created";
-            msg.classList.remove("text-red-500");
-            msg.classList.add("text-emerald-400");
-            loadUsers();
-          });
-        });
-      document
-        .getElementById("purge-storage-form")
-        .addEventListener("submit", function (event) {
-          event.preventDefault();
-          var msg = document.getElementById("purge-message");
-          var name = document.getElementById("purge-name").value.trim();
-          if (!document.getElementById("purge-confirm").checked) {
-            msg.textContent = "confirm the checkbox first";
-            msg.classList.add("text-red-500");
-            return;
-          }
-          fetch(
-            "/api/v1/system/purge-storage/" + encodeURIComponent(name),
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-              },
-              body: JSON.stringify({ confirm: true }),
-            },
-          ).then(function (resp) {
+          body: JSON.stringify({ confirm: true }),
+        })
+          .then(function (resp) {
+            ofan.busy(submit, false);
             if (resp.status !== 200) {
               resp.text().then(function (text) {
                 msg.textContent = text;
-                msg.classList.add("text-red-500");
+                msg.className = "text-center text-sm font-medium text-red-500";
               });
               return;
             }
             document.getElementById("purge-storage-form").reset();
-            msg.textContent = "storage purged for '" + name + "'";
-            msg.classList.remove("text-red-500");
-            msg.classList.add("text-emerald-400");
+            msg.textContent = "";
+            ofan.toast("Storage purged for " + name, true);
             loadOrphans();
+          })
+          .catch(function () {
+            ofan.busy(submit, false);
+            msg.textContent = "Could not reach the server.";
+            msg.className = "text-center text-sm font-medium text-red-500";
           });
-        });
+      });
+
       function dangerMessage(text, ok) {
         var el = document.getElementById("danger-message");
         el.textContent = text;
         el.classList.toggle("text-red-500", !ok);
         el.classList.toggle("text-emerald-400", !!ok);
       }
-      function armDangerButton(btn, armedLabel) {
-        if (!btn.getAttribute("data-armed")) {
-          btn.setAttribute("data-armed", "1");
-          btn.setAttribute("data-label", btn.textContent);
-          btn.textContent = armedLabel;
-          return false;
-        }
-        return true;
+
+      var resetInput = document.getElementById("reset-confirm-text");
+      var resetBtn = document.getElementById("reset-database");
+      function syncReset() {
+        resetBtn.disabled = resetInput.value.trim().toLowerCase() !== "reset";
       }
-      document
-        .getElementById("reset-database")
-        .addEventListener("click", function () {
-          var btn = document.getElementById("reset-database");
-          if (!armDangerButton(btn, "Click again to confirm reset")) return;
-          fetch("/api/v1/system/reset", {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          }).then(function (resp) {
+      resetInput.addEventListener("input", syncReset);
+      resetBtn.addEventListener("click", function () {
+        ofan.busy(resetBtn, true);
+        fetch("/api/v1/system/reset", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (resp) {
             if (resp.status !== 200) {
+              ofan.busy(resetBtn, false);
+              syncReset();
               resp.text().then(function (text) {
                 dangerMessage(text, false);
               });
               return;
             }
             window.location.href = "/login";
+          })
+          .catch(function () {
+            ofan.busy(resetBtn, false);
+            syncReset();
+            dangerMessage("Could not reach the server.", false);
           });
-        });
-      document
-        .getElementById("shutdown-server")
-        .addEventListener("click", function () {
-          var btn = document.getElementById("shutdown-server");
-          if (!armDangerButton(btn, "Click again to confirm shutdown")) return;
-          fetch("/api/v1/system/shutdown", {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          }).then(function (resp) {
+      });
+
+      var shutdownBtn = document.getElementById("shutdown-server");
+      shutdownBtn.addEventListener("click", function () {
+        if (!ofan.arm(shutdownBtn, "Click again to shut down")) return;
+        ofan.busy(shutdownBtn, true);
+        fetch("/api/v1/system/shutdown", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (resp) {
             if (resp.status !== 200) {
+              ofan.busy(shutdownBtn, false);
               resp.text().then(function (text) {
                 dangerMessage(text, false);
               });
               return;
             }
-            btn.disabled = true;
-            btn.classList.add("opacity-50");
-            dangerMessage(
-              "Ofan is shutting down. This page will stop responding.",
-              true,
-            );
+            dangerMessage("Ofan is shutting down. This page will stop responding.", true);
+          })
+          .catch(function () {
+            ofan.busy(shutdownBtn, false);
+            dangerMessage("Could not reach the server.", false);
           });
-        });
+      });
+
       loadUsers();
       loadOrphans();
     </script>
