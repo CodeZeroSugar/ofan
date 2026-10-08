@@ -72,3 +72,20 @@ func (c *ApiConfig) HandlerAdminUsersPage(w http.ResponseWriter, r *http.Request
 
 	respondWithHTML(w, http.StatusOK, c.Templates, "users", data)
 }
+
+func (c *ApiConfig) HandlerServerDetailsPage(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	data := struct {
+		Name    string
+		IsAdmin bool
+	}{
+		Name:    r.PathValue("server_name"),
+		IsAdmin: userCtx.IsAdmin,
+	}
+
+	respondWithHTML(w, http.StatusOK, c.Templates, "details", data)
+}

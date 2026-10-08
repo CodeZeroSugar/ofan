@@ -581,3 +581,35 @@ func (c *ApiConfig) HandlerListOrphanedStorage(w http.ResponseWriter, r *http.Re
 	}
 	respondWithJson(w, http.StatusOK, orphanedNames)
 }
+
+func (c *ApiConfig) HandlerGetGameServerConfig(w http.ResponseWriter, r *http.Request) {
+	srvName := r.PathValue("server_name")
+	rec, err := c.Store.GetServer(r.Context(), srvName)
+	if err != nil {
+		if errors.Is(err, db.ErrServerNotFound) {
+			http.Error(w, fmt.Sprintf("attempted to get config for server '%s', which does not exist", srvName), http.StatusNotFound)
+			return
+		}
+		log.Printf("failed to get config for server '%s' from database", srvName)
+		http.Error(w, fmt.Sprintf("something went wrong, could not get config for server '%s'", srvName), http.StatusInternalServerError)
+		return
+	}
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if rec.Owner != userCtx.Username && !userCtx.IsAdmin {
+		http.Error(w, "only server owner or admin can get config", http.StatusForbidden)
+		return
+	}
+
+	var cfg k8s.ValheimConfig
+	if err := json.Unmarshal([]byte(rec.ConfigJSON), &cfg); err != nil {
+		log.Printf("corrupt config, could not unmarshal config from database for server '%s'", srvName)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, cfg)
+}

@@ -33,7 +33,7 @@ func (s *CreateGameServer) Validate() error {
 		return errors.New("server name is required")
 	}
 
-	if s.Name == "defaults" {
+	if s.Name == "defaults" || s.Name == "new" {
 		return errors.New("invalid server name")
 	}
 

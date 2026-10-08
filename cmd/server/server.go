@@ -61,7 +61,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/start", s.apiCfg.HandlerStartGameServer)
 	apiMux.HandleFunc("POST /api/v1/servers/{server_name}/stop", s.apiCfg.HandlerStopGameServer)
 	apiMux.HandleFunc("PUT /api/v1/servers/{server_name}/config", s.apiCfg.HandlerUpdateGameServerConfig)
-
+	apiMux.HandleFunc("GET /api/v1/servers/{server_name}/config", s.apiCfg.HandlerGetGameServerConfig)
 	apiMux.HandleFunc("POST /api/v1/auth/password", s.apiCfg.HandlerChangePassword)
 
 	// System command handlers, root protected
@@ -97,6 +97,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
 	mux.Handle("GET /servers", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerServersPage)))
 	mux.Handle("GET /servers/new", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerCreatePage)))
+	mux.Handle("GET /servers/{server_name}", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerServerDetailsPage)))
 	mux.Handle("GET /admin", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerAdminUsersPage)))
 
 	return s, nil
