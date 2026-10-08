@@ -11,81 +11,14 @@
   </head>
   <body id="screen-wrapper" class="min-h-screen bg-zinc-900 text-neutral-50">
     <div class="flex min-h-screen flex-col md:flex-row">
-      <aside
-        class="flex w-full flex-row flex-wrap items-center gap-2 border-b border-zinc-800 p-4 md:min-h-screen md:w-56 md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:p-6"
-      >
-        <div
-          class="mb-0 mr-auto text-xl font-extrabold text-amber-500 md:mb-4 md:mr-0 md:text-2xl"
-        >
-          Ofan
-        </div>
-        <a
-          href="/servers"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
-          >Servers</a
-        >
-        {{if .IsAdmin}}
-        <a
-          href="/admin"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
-          >Admin</a
-        >
-        {{end}}
-        <a
-          href="/settings"
-          class="rounded-lg bg-zinc-800 px-3 py-2 text-sm font-medium text-amber-500"
-          >Settings</a
-        >
-        <div
-          class="ml-auto flex items-center gap-2 md:ml-0 md:mt-auto md:flex-col md:items-stretch"
-        >
-          <div class="hidden text-sm text-zinc-400 md:block">
-            logged in as {{ .Username }}
-          </div>
-          <button
-            id="logout-button"
-            class="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
-            hx-post="/api/v1/auth/logout"
-            hx-swap="none"
-          >
-            Log Out
-          </button>
-          <div
-            id="logout-error"
-            class="mt-2 text-right text-sm font-medium text-red-500"
-          ></div>
-        </div>
-        <script>
-          document.body.addEventListener("htmx:afterRequest", function (event) {
-            const reqElement = event.detail.elt;
-            if (!reqElement) return;
-            const responseStatus = event.detail.xhr.status;
-            if (reqElement.id === "logout-button") {
-              if (responseStatus !== 200) {
-                window.location.href = "/login";
-                return;
-              }
-              let data = {};
-              try {
-                data = JSON.parse(event.detail.xhr.responseText);
-              } catch (error) {
-                window.location.href = "/login";
-                return;
-              }
-              if (data.message === "logout successful") {
-                window.location.href = "/login";
-              }
-            }
-          });
-        </script>
-      </aside>
+      {{template "sidebar" .}}
       <div class="flex-1">
         <main class="mx-auto w-full max-w-5xl p-6">
           <h2 class="mb-4 text-2xl font-bold text-amber-500">{{ .Title }}</h2>
           <div
-            class="mb-4 w-full max-w-md rounded-2xl bg-zinc-700 p-6 shadow-xl"
+            class="mb-4 w-full max-w-md card p-6"
           >
-            <h3 class="mb-4 text-lg font-semibold">Account</h3>
+            <h3 class="section-title">Account</h3>
             <div class="flex flex-col gap-2 text-sm">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-zinc-400">Username</span>
@@ -108,18 +41,18 @@
             </div>
           </div>
           <div
-            class="w-full max-w-md rounded-2xl bg-zinc-700 p-6 shadow-xl"
+            class="w-full max-w-md card p-6"
           >
-            <h3 class="mb-4 text-lg font-semibold">Change Password</h3>
+            <h3 class="section-title">Change Password</h3>
             <form id="change-password-form" class="flex flex-col gap-4">
               <div>
                 <label
                   for="new-password"
-                  class="mb-1 block text-sm font-medium text-zinc-400"
+                  class="label"
                   >New Password</label
                 >
                 <input
-                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  class="field"
                   type="password"
                   id="new-password"
                   name="new_password"
@@ -129,7 +62,7 @@
               </div>
               <button
                 type="submit"
-                class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+                class="btn-primary w-full"
               >
                 Change Password
               </button>

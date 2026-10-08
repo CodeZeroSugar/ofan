@@ -1,5 +1,5 @@
 {{define "view"}}{{range $name, $view := .}}
-<div class="server-card rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow" data-server="{{$name}}">
+<div class="server-card card p-5" data-server="{{$name}}">
   <div class="flex items-center justify-between gap-3">
     <div class="text-lg font-semibold text-neutral-50"><a href="/servers/{{$name}}" class="hover:text-amber-500 transition-colors">{{$name}}</a></div>
     <div class="flex items-center gap-1">

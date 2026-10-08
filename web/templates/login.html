@@ -22,7 +22,7 @@
   </div>
   <div
     id="login-container"
-    class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8 flex flex-col gap-6"
+    class="w-full max-w-md card p-8 flex flex-col gap-6"
   >
     <h2 class="text-2xl font-bold">Login</h2>
     <form
@@ -33,9 +33,9 @@
       hx-swap="none"
     >
       <div>
-        <label for="username" class="mb-1 block text-sm font-medium text-zinc-400">Username</label>
+        <label for="username" class="label">Username</label>
         <input
-          class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          class="field"
           type="text"
           id="username"
           name="username"
@@ -44,9 +44,9 @@
       </div>
 
       <div>
-        <label for="password" class="mb-1 block text-sm font-medium text-zinc-400">Password</label>
+        <label for="password" class="label">Password</label>
         <input
-          class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          class="field"
           type="password"
           id="password"
           name="password"
@@ -55,7 +55,7 @@
       </div>
       <button
         type="submit"
-        class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+        class="btn-primary w-full"
       >
         Submit
       </button>
@@ -69,9 +69,9 @@
       hx-swap="none"
     >
       <div>
-        <label for="new-password" class="mb-1 block text-sm font-medium text-zinc-400">New Password</label>
+        <label for="new-password" class="label">New Password</label>
         <input
-          class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+          class="field"
           type="password"
           id="new-password"
           name="new_password"
@@ -79,7 +79,7 @@
         />
       </div>
       <button
-        class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+        class="btn-primary w-full"
         type="submit"
       >
         Submit

@@ -1,0 +1,67 @@
+{{define "sidebar"}}
+<aside
+  class="flex w-full flex-row flex-wrap items-center gap-3 border-b border-zinc-800 bg-zinc-950/40 p-4 md:min-h-screen md:w-60 md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:p-6"
+>
+  <div
+    class="mr-auto text-xl font-extrabold tracking-tight text-amber-500 md:mb-6 md:mr-0"
+  >
+    Ofan
+  </div>
+  <nav class="flex flex-row gap-1 md:flex-col">
+    <a href="/servers" data-nav="servers" class="nav-link">Servers</a>
+    {{if .IsAdmin}}
+    <a href="/admin" data-nav="admin" class="nav-link">Admin</a>
+    {{end}}
+    <a href="/settings" data-nav="settings" class="nav-link">Settings</a>
+  </nav>
+  <div class="ml-auto md:ml-0 md:mt-auto md:w-full">
+    <button
+      id="logout-button"
+      type="button"
+      class="btn-secondary w-full"
+      hx-post="/api/v1/auth/logout"
+      hx-swap="none"
+    >
+      Log Out
+    </button>
+    <div id="logout-error" class="mt-2 text-sm font-medium text-red-500"></div>
+  </div>
+  <script>
+    document.body.addEventListener("htmx:afterRequest", function (event) {
+      const reqElement = event.detail.elt;
+      if (!reqElement) return;
+      const responseStatus = event.detail.xhr.status;
+      if (reqElement.id === "logout-button") {
+        if (responseStatus !== 200) {
+          window.location.href = "/login";
+          return;
+        }
+        let data = {};
+        try {
+          data = JSON.parse(event.detail.xhr.responseText);
+        } catch (error) {
+          window.location.href = "/login";
+          return;
+        }
+        if (data.message === "logout successful") {
+          window.location.href = "/login";
+        }
+      }
+    });
+  </script>
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var section = "servers";
+      if (path.indexOf("/admin") === 0) section = "admin";
+      else if (path.indexOf("/settings") === 0) section = "settings";
+      document.querySelectorAll("[data-nav]").forEach(function (link) {
+        link.classList.toggle(
+          "nav-link-active",
+          link.getAttribute("data-nav") === section,
+        );
+      });
+    })();
+  </script>
+</aside>
+{{end}}

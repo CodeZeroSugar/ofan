@@ -11,82 +11,18 @@
   </head>
   <body id="screen-wrapper" class="min-h-screen bg-zinc-900 text-neutral-50">
     <div class="flex min-h-screen flex-col md:flex-row">
-      <aside
-        class="flex w-full flex-row flex-wrap items-center gap-2 border-b border-zinc-800 p-4 md:min-h-screen md:w-56 md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:p-6"
-      >
-        <div
-          class="mb-0 mr-auto text-xl font-extrabold text-amber-500 md:mb-4 md:mr-0 md:text-2xl"
-        >
-          Ofan
-        </div>
-        <a
-          href="/servers"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
-          >Servers</a
-        >
-        {{if .IsAdmin}}
-        <a
-          href="/admin"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
-          >Admin</a
-        >
-        {{end}}
-        <a
-          href="/settings"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
-          >Settings</a
-        >
-        <div
-          class="ml-auto flex items-center gap-2 md:ml-0 md:mt-auto md:flex-col md:items-stretch"
-        >
-          <button
-            id="logout-button"
-            class="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
-            hx-post="/api/v1/auth/logout"
-            hx-swap="none"
-          >
-            Log Out
-          </button>
-          <div
-            id="logout-error"
-            class="mt-2 text-right text-sm font-medium text-red-500"
-          ></div>
-        </div>
-        <script>
-          document.body.addEventListener("htmx:afterRequest", function (event) {
-            const reqElement = event.detail.elt;
-            if (!reqElement) return;
-            const responseStatus = event.detail.xhr.status;
-            if (reqElement.id === "logout-button") {
-              if (responseStatus !== 200) {
-                window.location.href = "/login";
-                return;
-              }
-              let data = {};
-              try {
-                data = JSON.parse(event.detail.xhr.responseText);
-              } catch (error) {
-                window.location.href = "/login";
-                return;
-              }
-              if (data.message === "logout successful") {
-                window.location.href = "/login";
-              }
-            }
-          });
-        </script>
-      </aside>
+      {{template "sidebar" .}}
       <div class="flex flex-1 flex-col items-center p-6">
     <div class="flex w-full max-w-md flex-col gap-4">
     <a
       href="/servers"
-      class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block self-start"
+      class="btn-secondary self-start"
     >
       Back
     </a>
     <div
       id="create-container"
-      class="w-full max-w-md bg-zinc-700 rounded-2xl shadow-xl p-8 flex flex-col gap-6"
+      class="w-full max-w-md card p-8 flex flex-col gap-6"
     >
       <h2 class="text-2xl font-bold">Create New Server</h2>
       <form
@@ -94,9 +30,9 @@
         class="flex flex-col gap-4"
       >
         <div>
-          <label for="name" class="mb-1 block text-sm font-medium text-zinc-400">Server Name</label>
+          <label for="name" class="label">Server Name</label>
           <input
-            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="field"
             type="text"
             id="name"
             name="name"
@@ -104,9 +40,9 @@
           />
         </div>
         <div>
-          <label for="password" class="mb-1 block text-sm font-medium text-zinc-400">Server Password</label>
+          <label for="password" class="label">Server Password</label>
           <input
-            class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            class="field"
             type="password"
             id="password"
             name="password"
@@ -128,9 +64,9 @@
             <h3 class="text-lg font-semibold">Core</h3>
           </div>
           <div>
-            <label for="world-name" class="mb-1 block text-sm font-medium text-zinc-400">World Name</label>
+            <label for="world-name" class="label">World Name</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="world-name"
               name="world_name"
@@ -139,9 +75,9 @@
             />
           </div>
           <div>
-            <label for="server-port" class="mb-1 block text-sm font-medium text-zinc-400">Server Port</label>
+            <label for="server-port" class="label">Server Port</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="number"
               id="server-port"
               name="server_port"
@@ -159,9 +95,9 @@
             <h3 class="text-lg font-semibold">Access Control</h3>
           </div>
           <div>
-            <label for="admin-ids" class="mb-1 block text-sm font-medium text-zinc-400">Admin IDs</label>
+            <label for="admin-ids" class="label">Admin IDs</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="admin-ids"
               name="admin_list_ids"
@@ -170,9 +106,9 @@
             />
           </div>
           <div>
-            <label for="banned-ids" class="mb-1 block text-sm font-medium text-zinc-400">Banned IDs</label>
+            <label for="banned-ids" class="label">Banned IDs</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="banned-ids"
               name="banned_list_ids"
@@ -181,9 +117,9 @@
             />
           </div>
           <div>
-            <label for="permitted-ids" class="mb-1 block text-sm font-medium text-zinc-400">Permitted IDs</label>
+            <label for="permitted-ids" class="label">Permitted IDs</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="permitted-ids"
               name="permitted_list_ids"
@@ -195,9 +131,9 @@
             <h3 class="text-lg font-semibold">Maintenance</h3>
           </div>
           <div>
-            <label for="update-cron" class="mb-1 block text-sm font-medium text-zinc-400">Update Schedule</label>
+            <label for="update-cron" class="label">Update Schedule</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="update-cron"
               name="update_cron"
@@ -212,9 +148,9 @@
             </label>
           </div>
           <div>
-            <label for="restart-cron" class="mb-1 block text-sm font-medium text-zinc-400">Restart Schedule</label>
+            <label for="restart-cron" class="label">Restart Schedule</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="restart-cron"
               name="restart_cron"
@@ -241,9 +177,9 @@
             </label>
           </div>
           <div>
-            <label for="backups-cron" class="mb-1 block text-sm font-medium text-zinc-400">Backup Schedule</label>
+            <label for="backups-cron" class="label">Backup Schedule</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="backups-cron"
               name="backups_cron"
@@ -252,9 +188,9 @@
             />
           </div>
           <div>
-            <label for="backups-max-age" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Age</label>
+            <label for="backups-max-age" class="label">Backup Max Age</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="number"
               id="backups-max-age"
               name="backups_max_age"
@@ -263,9 +199,9 @@
             />
           </div>
           <div>
-            <label for="backups-max-count" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Count</label>
+            <label for="backups-max-count" class="label">Backup Max Count</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="number"
               id="backups-max-count"
               name="backups_max_count"
@@ -292,9 +228,9 @@
             <h3 class="text-lg font-semibold">System</h3>
           </div>
           <div>
-            <label for="time-zone" class="mb-1 block text-sm font-medium text-zinc-400">Time Zone</label>
+            <label for="time-zone" class="label">Time Zone</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="text"
               id="time-zone"
               name="time_zone"
@@ -303,9 +239,9 @@
             />
           </div>
           <div>
-            <label for="puid" class="mb-1 block text-sm font-medium text-zinc-400">PUID</label>
+            <label for="puid" class="label">PUID</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="number"
               id="puid"
               name="puid"
@@ -314,9 +250,9 @@
             />
           </div>
           <div>
-            <label for="pgid" class="mb-1 block text-sm font-medium text-zinc-400">PGID</label>
+            <label for="pgid" class="label">PGID</label>
             <input
-              class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              class="field"
               type="number"
               id="pgid"
               name="pgid"
@@ -330,7 +266,7 @@
           <button
             id="create-submit"
             type="submit"
-            class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+            class="btn-primary w-full"
           >
             Submit
           </button>
