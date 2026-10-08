@@ -1,0 +1,472 @@
+{{define "details"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/json-enc.js"></script>
+    <link href="/static/css/output.css" rel="stylesheet" />
+    <title>{{.Name}} — Ofan</title>
+  </head>
+  <body id="screen-wrapper" class="min-h-screen bg-zinc-900 text-neutral-50">
+    <div class="flex min-h-screen flex-col md:flex-row">
+      <aside
+        class="flex w-full flex-row flex-wrap items-center gap-2 border-b border-zinc-800 p-4 md:min-h-screen md:w-56 md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:p-6"
+      >
+        <div
+          class="mb-0 mr-auto text-xl font-extrabold text-amber-500 md:mb-4 md:mr-0 md:text-2xl"
+        >
+          Ofan
+        </div>
+        <a
+          href="/servers"
+          class="rounded-lg bg-zinc-800 px-3 py-2 text-sm font-medium text-amber-500"
+          >Servers</a
+        >
+        {{if .IsAdmin}}
+        <a
+          href="/admin"
+          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
+          >Admin</a
+        >
+        {{end}}
+        <a
+          href="/settings"
+          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
+          >Settings</a
+        >
+        <div
+          class="ml-auto flex items-center gap-2 md:ml-0 md:mt-auto md:flex-col md:items-stretch"
+        >
+          <button
+            id="logout-button"
+            class="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+            hx-post="/api/v1/auth/logout"
+            hx-swap="none"
+          >
+            Log Out
+          </button>
+          <div
+            id="logout-error"
+            class="mt-2 text-right text-sm font-medium text-red-500"
+          ></div>
+        </div>
+        <script>
+          document.body.addEventListener("htmx:afterRequest", function (event) {
+            const reqElement = event.detail.elt;
+            if (!reqElement) return;
+            const responseStatus = event.detail.xhr.status;
+            if (reqElement.id === "logout-button") {
+              if (responseStatus !== 200) {
+                window.location.href = "/login";
+                return;
+              }
+              let data = {};
+              try {
+                data = JSON.parse(event.detail.xhr.responseText);
+              } catch (error) {
+                window.location.href = "/login";
+                return;
+              }
+              if (data.message === "logout successful") {
+                window.location.href = "/login";
+              }
+            }
+          });
+        </script>
+      </aside>
+      <div class="flex-1">
+        <main class="mx-auto w-full max-w-5xl p-6">
+          <div class="mb-4 flex items-center justify-between gap-4">
+            <h2 class="text-2xl font-bold text-amber-500">{{.Name}}</h2>
+            <a
+              href="/servers"
+              class="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-600 inline-block self-start"
+              >Back</a
+            >
+          </div>
+          <div
+            id="details-error"
+            class="mb-4 text-center text-sm font-medium text-red-500"
+          ></div>
+          <div
+            id="details-status"
+            class="mb-4 rounded-xl border border-zinc-700 bg-zinc-800 p-5 shadow"
+          >
+            <div class="text-sm text-zinc-400">Loading status…</div>
+          </div>
+          <div
+            class="w-full max-w-md rounded-2xl bg-zinc-700 p-8 shadow-xl flex flex-col gap-6"
+          >
+            <h3 class="text-xl font-bold">Configuration</h3>
+            <form id="config-form" class="flex flex-col gap-4" data-server="{{.Name}}">
+              <div>
+                <label for="password" class="mb-1 block text-sm font-medium text-zinc-400">Server Password</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="password"
+                  id="password"
+                  name="password"
+                  minlength="5"
+                  required
+                />
+              </div>
+              <div>
+                <h4 class="text-lg font-semibold">Core</h4>
+              </div>
+              <div>
+                <label for="world-name" class="mb-1 block text-sm font-medium text-zinc-400">World Name</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg focus:outline-none opacity-50"
+                  type="text"
+                  id="world-name"
+                  disabled
+                  title="Frozen after creation — changing it requires recreating the server."
+                />
+              </div>
+              <div>
+                <label for="server-port" class="mb-1 block text-sm font-medium text-zinc-400">Server Port</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg focus:outline-none opacity-50"
+                  type="number"
+                  id="server-port"
+                  disabled
+                  title="Frozen after creation — changing it requires recreating the server."
+                />
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="Whether the server is listed publicly.">
+                  <input type="checkbox" id="server-public" />
+                  Public server
+                </label>
+              </div>
+              <div>
+                <h4 class="text-lg font-semibold">Access Control</h4>
+              </div>
+              <div>
+                <label for="admin-ids" class="mb-1 block text-sm font-medium text-zinc-400">Admin IDs</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="admin-ids"
+                  title="SteamID64 values of admins, comma-separated. Empty means no one."
+                />
+              </div>
+              <div>
+                <label for="banned-ids" class="mb-1 block text-sm font-medium text-zinc-400">Banned IDs</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="banned-ids"
+                  title="SteamID64 values of banned players, comma-separated. Empty means no one."
+                />
+              </div>
+              <div>
+                <label for="permitted-ids" class="mb-1 block text-sm font-medium text-zinc-400">Permitted IDs</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="permitted-ids"
+                  title="SteamID64 allowlist. Empty means everyone may join."
+                />
+              </div>
+              <div>
+                <h4 class="text-lg font-semibold">Maintenance</h4>
+              </div>
+              <div>
+                <label for="update-cron" class="mb-1 block text-sm font-medium text-zinc-400">Update Schedule</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="update-cron"
+                  title="Cron schedule for checking game updates, e.g. every 15 minutes."
+                />
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only run scheduled updates when no players are online.">
+                  <input type="checkbox" id="update-if-idle" />
+                  Update only when idle
+                </label>
+              </div>
+              <div>
+                <label for="restart-cron" class="mb-1 block text-sm font-medium text-zinc-400">Restart Schedule</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="restart-cron"
+                  title="Cron schedule for scheduled restarts, e.g. daily at 05:10."
+                />
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only restart on schedule when no players are online.">
+                  <input type="checkbox" id="restart-if-idle" />
+                  Restart only when idle
+                </label>
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="Take automatic world backups.">
+                  <input type="checkbox" id="backups" />
+                  Automatic backups
+                </label>
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="Only take backups when no players are online.">
+                  <input type="checkbox" id="backups-if-idle" />
+                  Back up only when idle
+                </label>
+              </div>
+              <div>
+                <label for="backups-cron" class="mb-1 block text-sm font-medium text-zinc-400">Backup Schedule</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="backups-cron"
+                  title="Cron schedule for automatic backups, e.g. hourly at minute 5."
+                />
+              </div>
+              <div>
+                <label for="backups-max-age" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Age</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="number"
+                  id="backups-max-age"
+                  title="Oldest backup age to retain. Older backups are pruned."
+                />
+              </div>
+              <div>
+                <label for="backups-max-count" class="mb-1 block text-sm font-medium text-zinc-400">Backup Max Count</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="number"
+                  id="backups-max-count"
+                  title="Maximum number of backups to keep. Oldest are pruned first."
+                />
+              </div>
+              <div>
+                <h4 class="text-lg font-semibold">Mods</h4>
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="ValheimPlus server mod. Mutually exclusive with BepInEx.">
+                  <input type="checkbox" id="valheim-plus" />
+                  ValheimPlus
+                </label>
+              </div>
+              <div>
+                <label class="flex items-center gap-2 text-sm text-zinc-300" title="BepInEx mod framework. Mutually exclusive with ValheimPlus.">
+                  <input type="checkbox" id="bepinex" />
+                  BepInEx
+                </label>
+              </div>
+              <div>
+                <h4 class="text-lg font-semibold">System</h4>
+              </div>
+              <div>
+                <label for="time-zone" class="mb-1 block text-sm font-medium text-zinc-400">Time Zone</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="text"
+                  id="time-zone"
+                  title="IANA time zone used for schedules and logs, e.g. America/Chicago."
+                />
+              </div>
+              <div>
+                <label for="puid" class="mb-1 block text-sm font-medium text-zinc-400">PUID</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="number"
+                  id="puid"
+                  title="Linux user ID the server runs as. 0 means root."
+                />
+              </div>
+              <div>
+                <label for="pgid" class="mb-1 block text-sm font-medium text-zinc-400">PGID</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-amber-500 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  type="number"
+                  id="pgid"
+                  title="Linux group ID the server runs as. 0 means root."
+                />
+              </div>
+              <div class="relative pb-6">
+                <button
+                  id="config-submit"
+                  type="submit"
+                  class="w-full bg-amber-500 hover:bg-amber-400 text-zinc-900 font-medium py-2 rounded-lg transition-colors"
+                >
+                  Save Configuration
+                </button>
+                <div
+                  id="config-result"
+                  class="absolute left-0 right-0 text-center text-sm font-medium mt-4"
+                ></div>
+              </div>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script>
+      var configForm = document.getElementById("config-form");
+      var serverName = configForm.getAttribute("data-server");
+      function detailsError(text) {
+        document.getElementById("details-error").textContent = text;
+      }
+      function setVal(id, value) {
+        var el = document.getElementById(id);
+        if (value !== undefined && value !== null) el.value = value;
+      }
+      function setChecked(id, value) {
+        document.getElementById(id).checked = !!value;
+      }
+      fetch("/api/v1/servers/" + serverName + "/config", {
+        headers: { Accept: "application/json" },
+      })
+        .then(function (resp) {
+          if (resp.status === 404) throw new Error("server does not exist");
+          if (resp.status === 403)
+            throw new Error("only owner or admin may view this server");
+          if (!resp.ok) throw new Error("could not load configuration");
+          return resp.json();
+        })
+        .then(function (cfg) {
+          setVal("password", cfg.core_settings.server_pass);
+          setVal("world-name", cfg.core_settings.world_name);
+          setVal("server-port", cfg.core_settings.server_port);
+          setChecked("server-public", cfg.core_settings.server_public);
+          setVal("admin-ids", cfg.access_control.admin_list_ids);
+          setVal("banned-ids", cfg.access_control.banned_list_ids);
+          setVal("permitted-ids", cfg.access_control.permitted_list_ids);
+          setVal("update-cron", cfg.maintenance.update_cron);
+          setChecked("update-if-idle", cfg.maintenance.update_if_idle);
+          setVal("restart-cron", cfg.maintenance.restart_cron);
+          setChecked("restart-if-idle", cfg.maintenance.restart_if_idle);
+          setChecked("backups", cfg.maintenance.backups);
+          setChecked("backups-if-idle", cfg.maintenance.backups_if_idle);
+          setVal("backups-cron", cfg.maintenance.backups_cron);
+          setVal("backups-max-age", cfg.maintenance.backups_max_age);
+          setVal("backups-max-count", cfg.maintenance.backups_max_count);
+          setVal("time-zone", cfg.system_settings.time_zone);
+          setVal("puid", cfg.system_settings.puid);
+          setVal("pgid", cfg.system_settings.pgid);
+          setChecked("valheim-plus", cfg.mods.valheim_plus);
+          setChecked("bepinex", cfg.mods.bepinex);
+        })
+        .catch(function (err) {
+          detailsError(err.message);
+        });
+      fetch("/api/v1/servers/" + serverName, {
+        headers: { Accept: "application/json" },
+      })
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("could not load status");
+          return resp.json();
+        })
+        .then(function (view) {
+          var st = document.getElementById("details-status");
+          st.innerHTML = "";
+          var rows = [
+            ["Status", view.status],
+            ["Desired", view.desired_state],
+            ["Health", view.health],
+            ["Owner", view.owner],
+            ["Address", view.node_ip + ":" + view.node_port],
+          ];
+          rows.forEach(function (pair) {
+            var row = document.createElement("div");
+            row.className = "text-sm";
+            var label = document.createElement("span");
+            label.className = "text-zinc-400";
+            label.textContent = pair[0] + ": ";
+            var val = document.createElement("span");
+            val.className = "text-neutral-50";
+            val.textContent = pair[1] === undefined || pair[1] === null ? "—" : pair[1];
+            row.appendChild(label);
+            row.appendChild(val);
+            st.appendChild(row);
+          });
+        })
+        .catch(function () {
+          document.getElementById("details-status").innerHTML =
+            '<div class="text-sm text-zinc-400">Status unavailable</div>';
+        });
+      var valheimPlusBox = document.getElementById("valheim-plus");
+      var bepinexBox = document.getElementById("bepinex");
+      valheimPlusBox.addEventListener("change", function () {
+        if (valheimPlusBox.checked) bepinexBox.checked = false;
+      });
+      bepinexBox.addEventListener("change", function () {
+        if (bepinexBox.checked) valheimPlusBox.checked = false;
+      });
+      configForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var result = document.getElementById("config-result");
+        function text(id) {
+          return document.getElementById(id).value;
+        }
+        function num(id) {
+          return parseInt(document.getElementById(id).value, 10);
+        }
+        function box(id) {
+          return document.getElementById(id).checked;
+        }
+        var password = document.getElementById("password").value;
+        var payload = {
+          core_settings: {
+            server_name: serverName,
+            world_name: text("world-name"),
+            server_pass: password,
+            server_port: num("server-port"),
+            server_public: box("server-public"),
+          },
+          access_control: {
+            admin_list_ids: text("admin-ids"),
+            banned_list_ids: text("banned-ids"),
+            permitted_list_ids: text("permitted-ids"),
+          },
+          maintenance: {
+            update_cron: text("update-cron"),
+            update_if_idle: box("update-if-idle"),
+            restart_cron: text("restart-cron"),
+            restart_if_idle: box("restart-if-idle"),
+            backups: box("backups"),
+            backups_if_idle: box("backups-if-idle"),
+            backups_cron: text("backups-cron"),
+            backups_max_age: num("backups-max-age"),
+            backups_max_count: num("backups-max-count"),
+          },
+          mods: {
+            valheim_plus: box("valheim-plus"),
+            bepinex: box("bepinex"),
+          },
+          system_settings: {
+            time_zone: text("time-zone"),
+            puid: num("puid"),
+            pgid: num("pgid"),
+          },
+        };
+        fetch("/api/v1/servers/" + serverName + "/config", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+        }).then(function (resp) {
+          if (resp.status !== 200) {
+            resp.text().then(function (t) {
+              result.textContent = t;
+              result.classList.add("text-red-500");
+              result.classList.remove("text-emerald-400");
+            });
+            return;
+          }
+          result.textContent = "Configuration saved — applying shortly.";
+          result.classList.remove("text-red-500");
+          result.classList.add("text-emerald-400");
+        });
+      });
+    </script>
+  </body>
+</html>
+{{end}}

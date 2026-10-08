@@ -89,3 +89,23 @@ func (c *ApiConfig) HandlerServerDetailsPage(w http.ResponseWriter, r *http.Requ
 
 	respondWithHTML(w, http.StatusOK, c.Templates, "details", data)
 }
+
+func (c *ApiConfig) HandlerUserSettingsPage(w http.ResponseWriter, r *http.Request) {
+	userCtx := auth.UserFromContext(r.Context())
+	if userCtx == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	data := struct {
+		Title    string
+		Username string
+		IsAdmin  bool
+	}{
+		Title:    "User Settings",
+		Username: userCtx.Username,
+		IsAdmin:  userCtx.IsAdmin,
+	}
+
+	respondWithHTML(w, http.StatusOK, c.Templates, "settings", data)
+}

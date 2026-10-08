@@ -31,6 +31,11 @@
           >Admin</a
         >
         {{end}}
+        <a
+          href="/settings"
+          class="rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-neutral-50"
+          >Settings</a
+        >
         <div
           class="ml-auto flex items-center gap-2 md:ml-0 md:mt-auto md:flex-col md:items-stretch"
         >
@@ -75,17 +80,32 @@
         </script>
         <script>
           document.body.addEventListener("click", function (event) {
+            function hideMenu() {
+              document.getElementById("card-menu").classList.add("hidden");
+            }
             var toggle = event.target.closest(".kebab-toggle");
             if (toggle) {
-              var card = toggle.closest(".server-card");
-              var menu = card.querySelector(".card-menu");
-              var willShow = menu.classList.contains("hidden");
-              document.querySelectorAll(".card-menu").forEach(function (m) {
-                m.classList.add("hidden");
-              });
-              if (willShow) menu.classList.remove("hidden");
+              var menu = document.getElementById("card-menu");
+              var wasHidden = menu.classList.contains("hidden");
+              hideMenu();
+              if (!wasHidden) return;
+              var serverName = toggle.getAttribute("data-server");
+              var status = toggle.getAttribute("data-status");
+              menu.querySelector(".menu-delete").setAttribute("data-server", serverName);
+              menu.querySelector(".menu-transfer").setAttribute("data-server", serverName);
+              menu.querySelector(".menu-edit").setAttribute("href", "/servers/" + serverName);
+              menu.querySelector(".menu-start").setAttribute("data-server", serverName);
+              menu.querySelector(".menu-stop").setAttribute("data-server", serverName);
+              menu.querySelector(".menu-start").classList.toggle("hidden", status !== "stopped");
+              menu.querySelector(".menu-stop").classList.toggle("hidden", status !== "running");
+              var rect = toggle.getBoundingClientRect();
+              menu.classList.remove("hidden");
+              var menuWidth = menu.offsetWidth;
+              menu.style.left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)) + "px";
+              menu.style.top = rect.bottom + 4 + "px";
               return;
             }
+            if (event.target.closest("#card-menu") === null) hideMenu();
             var del = event.target.closest(".menu-delete");
             if (del) {
               var serverName = del.getAttribute("data-server");
@@ -100,7 +120,7 @@
                 "hx-post",
                 "/api/v1/servers/" + serverName + "/delete",
               );
-              del.closest(".server-card").querySelector(".card-menu").classList.add("hidden");
+              document.getElementById("card-menu").classList.add("hidden");
               bar.classList.remove("hidden");
               return;
             }
@@ -112,16 +132,39 @@
               document.getElementById("transfer-error").textContent = "";
               return;
             }
-            var xfer = event.target.closest(".menu-transfer");
-            if (xfer) {
+            var xfer = event.target.closest(".menu-transfer");            if (xfer) {
               var xferName = xfer.getAttribute("data-server");
               document.getElementById("transfer-name").textContent = xferName;
               document.getElementById("transfer-error").textContent = "";
               var xferForm = document.getElementById("transfer-form");
               xferForm.setAttribute("data-server", xferName);
               xferForm.reset();
-              xfer.closest(".server-card").querySelector(".card-menu").classList.add("hidden");
+              document.getElementById("card-menu").classList.add("hidden");
               document.getElementById("transfer-bar").classList.remove("hidden");
+              return;
+            }
+            var power = event.target.closest(".menu-start, .menu-stop");
+            if (power) {
+              var powerName = power.getAttribute("data-server");
+              var action = power.classList.contains("menu-start") ? "start" : "stop";
+              document.getElementById("card-menu").classList.add("hidden");
+              fetch("/api/v1/servers/" + powerName + "/" + action, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+              }).then(function (resp) {
+                var actionError = document.getElementById("action-error");
+                var actionCard = document.querySelector(
+                  '.server-card[data-server="' + powerName + '"]',
+                );
+                if (resp.status !== 200) {
+                  resp.text().then(function (text) {
+                    actionError.textContent = text;
+                  });
+                  return;
+                }
+                actionError.textContent = "";
+                if (actionCard) actionCard.classList.add("opacity-50");
+              });
               return;
             }
           });
@@ -157,22 +200,15 @@
             document.getElementById("delete-confirm").classList.add("hidden");
             if (card) card.classList.add("opacity-50");
           });
-          document.body.addEventListener("htmx:afterRequest", function (event) {
-            var reqElement = event.detail.elt;
-            if (
-              !reqElement ||
-              !reqElement.classList ||
-              (!reqElement.classList.contains("menu-start") &&
-                !reqElement.classList.contains("menu-stop"))
-            )
-              return;var actionError = document.getElementById("action-error");
-            var actionCard = reqElement.closest(".server-card");
-            if (event.detail.xhr.status !== 200) {
-              actionError.textContent = event.detail.xhr.responseText;
-              return;
-            }
-            actionError.textContent = "";
-            if (actionCard) actionCard.classList.add("opacity-50");
+          window.addEventListener("scroll", function () {
+            document.getElementById("card-menu").classList.add("hidden");
+          }, true);
+          window.addEventListener("resize", function () {
+            document.getElementById("card-menu").classList.add("hidden");
+          });
+          document.body.addEventListener("htmx:afterSwap", function (event) {
+            if (event.target && event.target.id === "server-list")
+              document.getElementById("card-menu").classList.add("hidden");
           });
         </script>
         <script>
@@ -304,6 +340,42 @@
                 class="text-sm font-medium text-red-500"
               ></div>
             </form>
+          </div>
+          <div
+            id="card-menu"
+            class="hidden fixed z-50 flex flex-col rounded-xl border border-zinc-700 bg-zinc-800 p-2 shadow"
+          >
+            <button
+              type="button"
+              class="menu-delete rounded-lg px-4 py-2 text-left text-sm hover:bg-zinc-700"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              class="menu-transfer rounded-lg px-4 py-2 text-left text-sm hover:bg-zinc-700"
+            >
+              Transfer
+            </button>
+            <a
+              id="menu-edit"
+              href="/servers"
+              class="menu-edit rounded-lg px-4 py-2 text-left text-sm hover:bg-zinc-700"
+            >
+              Edit
+            </a>
+            <button
+              type="button"
+              class="menu-start rounded-lg px-4 py-2 text-left text-sm hover:bg-zinc-700"
+            >
+              Start
+            </button>
+            <button
+              type="button"
+              class="menu-stop rounded-lg px-4 py-2 text-left text-sm hover:bg-zinc-700"
+            >
+              Stop
+            </button>
           </div>
           <div
             id="server-list"

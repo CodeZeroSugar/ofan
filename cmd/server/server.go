@@ -95,6 +95,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 
 	// Page servers
 	mux.HandleFunc("GET /login", s.apiCfg.HandlerLoginPage)
+	mux.Handle("GET /settings", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerUserSettingsPage)))
 	mux.Handle("GET /servers", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerServersPage)))
 	mux.Handle("GET /servers/new", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerCreatePage)))
 	mux.Handle("GET /servers/{server_name}", s.apiCfg.Auth.LoginRedirect(http.HandlerFunc(s.apiCfg.HandlerServerDetailsPage)))
