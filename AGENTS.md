@@ -28,6 +28,20 @@ only, transient, not part of the repo.
 - Kubernetes cluster using k3s and client-go for interacting with k8s resources
 - Tests: testify is the preferred testing framework. Table-driven when practical.
 
+## Frontend contract (locked)
+
+- **htmx** = server-rendered fragments and polling (list fragment, login/logout
+  posts) — wherever the server owns the markup.
+- **`fetch` + vanilla JS** = JSON writes with real types (nested configs, real
+  booleans) — wherever the payload is a data structure. Shared helpers live in
+  `web/static/js/ui.js` (toast, busy, arm, escape); no JS framework, no bundler.
+- The vendored `json-enc` passes flat string fields only; it stringifies nested
+  objects, so nested payloads must not go through `hx-post`. String-encoded
+  booleans from plain forms are absorbed server-side by `TolerantBool`
+  (`internal/api/requests.go`).
+- Future: a full migration to `fetch` (htmx retained for the poll fragment only)
+  is deferred, not decided. Do not migrate working flows for uniformity alone.
+
 ## Architecture map
 
 ```

@@ -16,7 +16,7 @@ Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a c
 - **Drift handling** — cluster resources with no DB row are torn down after consecutive passes (storage preserved); the controller never adopts or invents rows. Deliberate `kubectl delete`s get re-provisioned because the DB is the source of truth.
 - **Auth that fits both machines and browsers** — JWT via `Bearer` header or `HttpOnly` cookie, role-based access (root/admin/user) plus row-level ownership, self-targeting guards, and mandatory root password bootstrap on fresh databases.
 - **Live config updates** — editable settings diff against a live config-hash annotation and apply in the same pass; server ports and world names are frozen after creation (change requires recreate).
-- **Web UI (first slice live)** — cookie login with first-run password-change flow, auto-polling server list with live status/health, logout. Server-rendered HTMX fragments; one endpoint serves JSON to machines and HTML to browsers via content negotiation.
+- **Web dashboard** — log in (browser keeps you signed in; first boot forces a root password change), then manage everything visually: server cards show live status and health with start, stop, transfer, edit, and delete actions; a creation form offers one-click defaults or full customization; each server has a detail page with live settings editing (ports and world names are frozen after creation); admins get user management, orphaned-storage cleanup, and guarded system controls; everyone gets a settings page with password change. Lists refresh live every few seconds.
 - **Operational visibility** — pod informer surfaces waiting reasons, restart counts, and node IPs; `CrashLoopBackOff` escalates to `failed` health.
 
 ## Design decisions (the interesting parts)
@@ -24,7 +24,7 @@ Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a c
 - **Tombstones over direct deletes** — deletes are state transitions the controller consumes, so crashes mid-teardown resume safely instead of leaking resources.
 - **No orphaned resource adoption** — a cluster resource without a DB row is drift to be removed, not state to be learned. Reattachment is a deliberate act (recreate the same-named server onto the preserved PVC).
 - **Ownership lives only in the database** — no ownership labels in Kubernetes; the row is the single authority.
-- **Boring frontend** — HTMX + Go templates, no JS framework. The server renders both the page and its live fragments from one template, so first paint and polled updates can never drift apart.
+- **Boring frontend** — HTMX for live page fragments, plain JavaScript for form submissions, Go templates for markup. No JS framework, no build step beyond styling.
 
 ## Architecture
 
@@ -48,17 +48,16 @@ Browser / API clients (JSON ↔ HTML via Accept header)
 - client-go (informers + registry)
 - modernc SQLite
 - JWT + Argon2id
-- HTMX + Go templates (Tailwind pipeline landing this slice)
+- HTMX + Go templates + Tailwind CSS for styling
 
 ## Getting started (current state)
 
-Prerequisites: Go 1.26+, a k3s cluster with kubeconfig. Build with `go build ./...`, run the server, and exercise the full lifecycle against a live cluster with `scripts/smoke.sh` (auth → lifecycle → delete/purge). First boot creates a `root` user with mandatory password change before any other route unlocks. Schema changes during development: delete `data/*.db` and let migrations rebuild (dev only).
+Prerequisites: Go 1.26+, a k3s cluster with kubeconfig, and a `.env` file (port, session secret, root credentials, namespace — see `cmd/server/config.go` for the full list). Build with `go build ./...`, run the server, and exercise the full lifecycle against a live cluster with `scripts/smoke.sh` (auth → lifecycle → delete/purge). First boot creates a `root` user with mandatory password change before any other route unlocks. Schema changes during development: delete `data/*.db` and let migrations rebuild (dev only). If the machine changes networks, restart k3s so the cluster picks up the new address before smoking.
 
 ## Roadmap
 
-- **This slice**: Tailwind styling pass, then create-form and server-detail slices (live config editing, delete with storage choice).
-- **Shutdown safety + drain**: graceful pod termination matched to the game’s save timeout, optional scale-to-zero drain on server shutdown.
 - **Deploy anywhere**: Dockerfile, Kubernetes manifests, and a setup script for local or existing clusters.
+- **Shutdown safety + drain**: graceful pod termination matched to the game’s save timeout, optional scale-to-zero drain on server shutdown.
 - **Later**: live player counts/metrics dashboard, out-of-game (Discord/webhook) notifications, readiness reporting.
 
 ## Status
