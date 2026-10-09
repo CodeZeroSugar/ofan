@@ -14,6 +14,7 @@ type ServerView struct {
 	Health              string        `json:"health"`
 	ConsecutiveFailures int           `json:"consecutive_failures"`
 	Uptime              time.Duration `json:"uptime"`
+	RunningSince        time.Time     `json:"running_since"`
 	Owner               string        `json:"owner,omitempty"`
 }
 
@@ -46,6 +47,7 @@ func (c *ApiConfig) buildViewMap(ctx context.Context, userCtx *db.User) (map[str
 			Health:              deriveHealth(s.Status, rec.DesiredState, s.PodWaiting, rec.ConsecutiveFailures),
 			ConsecutiveFailures: rec.ConsecutiveFailures,
 			Uptime:              time.Since(created),
+			RunningSince:        s.RunningSince,
 			Owner:               rec.Owner,
 		}
 	}

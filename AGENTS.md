@@ -104,6 +104,11 @@ these. These are decisions, not suggestions.
   the row.
 - **List contract** — `map[string]ServerView` keyed by server name; empty case
   returns `{}`; rowless uptime uses `IsZero()` fallback to registry `CreatedAt`.
+  `running_since` is a `time.Time` (RFC3339): pod-container start instant while
+  running, zero value otherwise. It is pod-derived (informer `upsertPod` reads
+  the running container state; cleared on waiting/terminated/pod-delete), never
+  DB-tracked, never a reconciled transition — an Ofan restart re-reads it from
+  the live pod, so it does not reset on controller restarts.
 - **Auth model** — role enforced via middleware; ownership enforced in the
   handler. Root can never be deleted or demoted.
 
@@ -140,7 +145,7 @@ reference the rule numbers in Locked domain rules.
 | 8 | `Poke` nil-guarded | Every handler calling `c.Poke()` first checks `c.Poke != nil`. |
 | 9 | NodePort auto-assign | `BuildService` still emits `nodePort: 0`; no user-configurable port re-introduced; `NodePort`/`QueryPort` remain informer-sourced actuals. |
 | 10 | Frozen config fields | PUT rejects `ServerPort`/`WorldName` changes with 400; no controller path compares or converges port/world values — frozen drift is impossible by construction. |
-| 11 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. |
+| 11 | List contract | List response stays `map[string]ServerView` keyed by name; empty case returns `{}`; rowless uptime uses `IsZero()` fallback. `running_since` is pod-derived start instant, zero when not running. |
 | 12 | Auth = middleware, ownership = handler | New endpoints gate role in middleware and ownership (`srvRec.Owner` vs `userCtx`) in the handler; `rejectSelf` still guards self-targeting ops. |
 
 ### Testing philosophy

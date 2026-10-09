@@ -155,9 +155,18 @@ func (m *InformerManager) upsertPod(obj *corev1.Pod) {
 		cs := obj.Status.ContainerStatuses
 		if len(cs) > 0 {
 			s.RestartCount = cs[0].RestartCount
-			if cs[0].State.Waiting != nil {
+			if cs[0].State.Running != nil {
+				if cs[0].State.Running.StartedAt.Time.IsZero() {
+					s.RunningSince = time.Time{}
+				} else {
+					s.RunningSince = cs[0].State.Running.StartedAt.Time
+				}
+				s.PodWaiting = ""
+			} else if cs[0].State.Waiting != nil {
+				s.RunningSince = time.Time{}
 				s.PodWaiting = cs[0].State.Waiting.Reason
 			} else {
+				s.RunningSince = time.Time{}
 				s.PodWaiting = ""
 			}
 		}
@@ -188,6 +197,7 @@ func (m *InformerManager) deletePod(obj interface{}) {
 		s.NodeIP = ""
 		s.PodWaiting = ""
 		s.RestartCount = 0
+		s.RunningSince = time.Time{}
 	}); !ok {
 		return
 	}

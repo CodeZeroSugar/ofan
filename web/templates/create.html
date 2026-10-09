@@ -16,17 +16,14 @@
       {{template "sidebar" .}}
       <div class="flex flex-1 flex-col items-center p-6">
     <div class="flex w-full max-w-3xl flex-col gap-4">
-    <a
-      href="/servers"
-      class="btn-secondary self-start"
-    >
-      Back
-    </a>
-    <div
+    <div class="flex items-center justify-between gap-4">
+        <h2 class="text-2xl font-bold text-neutral-50">Create Server</h2>
+        <a href="/servers" class="btn-secondary">Back</a>
+      </div>
+      <div
       id="create-container"
       class="w-full max-w-3xl card p-8 flex flex-col gap-6"
     >
-      <h2 class="text-2xl font-bold">Create New Server</h2>
       <form
         id="create-server-form"
         class="flex flex-col gap-4"

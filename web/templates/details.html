@@ -16,7 +16,7 @@
       {{template "sidebar" .}}
       <div class="flex-1">
         <main class="mx-auto w-full max-w-5xl p-6">
-          <div class="mb-4 flex items-center justify-between gap-4">
+          <div class="mb-4 flex max-w-3xl items-center justify-between gap-4">
             <h2 class="text-2xl font-bold text-neutral-50">{{.Name}}</h2>
             <a
               href="/servers"
@@ -30,7 +30,7 @@
           ></div>
           <div
             id="details-status"
-            class="mb-4 card p-5"
+            class="mb-4 max-w-3xl card p-5"
           >
             <div class="text-sm text-zinc-400">Loading status…</div>
           </div>
@@ -231,12 +231,11 @@
                 />
               </div>
               </div>
-</details><div class="sticky bottom-0 md:col-span-2 border-t border-zinc-700 bg-zinc-800/95 py-4 backdrop-blur">
-              <div class="flex items-center justify-between gap-3">
-                <span id="dirty-note" class="hidden text-sm font-medium text-orange-300">Unsaved changes</span>
-                <button id="config-submit" type="submit" class="btn-primary ml-auto">Save Configuration</button>
+</details><div class="pointer-events-none sticky bottom-0 md:col-span-2 flex justify-end pb-2 pt-6">
+              <div class="pointer-events-auto flex items-center gap-3">
+                <span id="dirty-note" class="badge hidden bg-zinc-900 text-orange-300 shadow-lg">Unsaved changes</span>
+                <button id="config-submit" type="submit" class="btn-primary shadow-lg shadow-black/50">Save Configuration</button>
               </div>
-              <div id="config-result" class="mt-2 text-sm font-medium"></div>
             </div>
             </form>
           </div>
@@ -339,7 +338,6 @@
       });
       configForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        var result = document.getElementById("config-result");
         ofan.busy(document.getElementById("config-submit"), true);
         function text(id) {
           return document.getElementById(id).value;
@@ -396,18 +394,13 @@
           ofan.busy(document.getElementById("config-submit"), false);
           if (resp.status !== 200) {
             resp.text().then(function (t) {
-              result.textContent = t;
-              result.classList.add("text-red-500");
-              result.classList.remove("text-emerald-400");
+              ofan.toast(t, false);
             });
             return;
           }
-          result.textContent = "Configuration saved — applying shortly.";
           baseline = snapshot();
           updateDirty();
           ofan.toast("Configuration saved", true);
-          result.classList.remove("text-red-500");
-          result.classList.add("text-emerald-400");
         });
       });
           var baseline = "";

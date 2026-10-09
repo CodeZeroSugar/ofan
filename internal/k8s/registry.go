@@ -21,6 +21,7 @@ type ServerState struct {
 	NodeIP       string    `json:"node_ip"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	RunningSince time.Time `json:"running_since"`
 }
 
 type ServerRegistry struct {
