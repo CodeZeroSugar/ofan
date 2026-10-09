@@ -11,7 +11,7 @@ Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a c
 ## What works today
 
 - **Declarative controller** — SQLite rows are desired state, the cluster is actual state; a reconcile loop (30s ticker + handler pokes) converges the two. API handlers never touch Kubernetes directly — they update the row and poke.
-- **Full server lifecycle** — create, start, stop, and crash-safe delete via tombstones (`desired_state='deleting'`), with persistent storage preserved by default and explicit purge paths.
+- **Full server lifecycle** — create, start, stop, and crash-safe delete, with persistent storage preserved by default and explicit purge paths.
 - **Self-healing escalation ladder** — every pass applies idempotent soft fixes; every 5th consecutive API failure triggers a graceful hard reset (teardown → bounded wait → fresh rebuild, PVC preserved). No failure gates, no manual retries; the loop never gives up.
 - **Drift handling** — cluster resources with no DB row are torn down after consecutive passes (storage preserved); the controller never adopts or invents rows. Deliberate `kubectl delete`s get re-provisioned because the DB is the source of truth.
 - **Auth that fits both machines and browsers** — JWT via `Bearer` header or `HttpOnly` cookie, role-based access (root/admin/user) plus row-level ownership, self-targeting guards, and mandatory root password bootstrap on fresh databases.
@@ -19,7 +19,7 @@ Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a c
 - **Web dashboard** — log in (browser keeps you signed in; first boot forces a root password change), then manage everything visually: server cards show live status and health with start, stop, transfer, edit, and delete actions; a creation form offers one-click defaults or full customization; each server has a detail page with live settings editing (ports and world names are frozen after creation); admins get user management, orphaned-storage cleanup, and guarded system controls; everyone gets a settings page with password change. Lists refresh live every few seconds.
 - **Operational visibility** — pod informer surfaces waiting reasons, restart counts, and node IPs; `CrashLoopBackOff` escalates to `failed` health.
 
-## Design decisions (the interesting parts)
+## Design decisions
 
 - **Tombstones over direct deletes** — deletes are state transitions the controller consumes, so crashes mid-teardown resume safely instead of leaking resources.
 - **No orphaned resource adoption** — a cluster resource without a DB row is drift to be removed, not state to be learned. Reattachment is a deliberate act (recreate the same-named server onto the preserved PVC).
