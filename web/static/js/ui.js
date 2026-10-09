@@ -13,6 +13,31 @@
     return host;
   }
 
+  // Trim sub-millisecond digits so every engine parses the Go timestamp.
+  function parseInstant(iso) {
+    if (!iso) return NaN;
+    return Date.parse(iso.replace(/(\.\d{3})\d+/, "$1"));
+  }
+
+  function formatElapsed(ms) {
+    var s = Math.max(0, Math.floor(ms / 1000));
+    var d = Math.floor(s / 86400);
+    var h = Math.floor((s % 86400) / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    if (d > 0) return d + "d " + h + "h";
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m " + String(sec).padStart(2, "0") + "s";
+    return sec + "s";
+  }
+
+  function tickRunning() {
+    document.querySelectorAll("[data-running-since]").forEach(function (el) {
+      var since = parseInstant(el.getAttribute("data-running-since"));
+      el.textContent = isNaN(since) ? "—" : formatElapsed(Date.now() - since);
+    });
+  }
+
   window.ofan = {
     toast: function (text, ok) {
       var el = document.createElement("div");
@@ -62,5 +87,11 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     },
+
+    tickRunning: tickRunning,
   };
+
+  setInterval(tickRunning, 1000);
+  document.addEventListener("DOMContentLoaded", tickRunning);
+  document.addEventListener("htmx:afterSettle", tickRunning);
 })();

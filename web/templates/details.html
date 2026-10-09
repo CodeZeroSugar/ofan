@@ -293,6 +293,7 @@
         .catch(function (err) {
           detailsError(err.message);
         });
+      function loadStatus() {
       fetch("/api/v1/servers/" + serverName, {
         headers: { Accept: "application/json" },
       })
@@ -309,6 +310,7 @@
             ["Health", view.health],
             ["Owner", view.owner],
             ["Address", view.node_ip + ":" + view.node_port],
+            ["Running for", "—", view.status === "running" && view.running_since && view.running_since.indexOf("0001-") !== 0 ? view.running_since : ""],
           ];
           rows.forEach(function (pair) {
             var row = document.createElement("div");
@@ -319,6 +321,7 @@
             var val = document.createElement("span");
             val.className = "text-neutral-50";
             val.textContent = pair[1] === undefined || pair[1] === null ? "—" : pair[1];
+            if (pair[2] !== undefined) val.setAttribute("data-running-since", pair[2]);
             row.appendChild(label);
             row.appendChild(val);
             st.appendChild(row);
@@ -328,6 +331,9 @@
           document.getElementById("details-status").innerHTML =
             '<div class="text-sm text-zinc-400">Status unavailable</div>';
         });
+      }
+      loadStatus();
+      setInterval(loadStatus, 5000);
       var valheimPlusBox = document.getElementById("valheim-plus");
       var bepinexBox = document.getElementById("bepinex");
       valheimPlusBox.addEventListener("change", function () {

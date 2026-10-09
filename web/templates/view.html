@@ -46,7 +46,14 @@
       <dt class="text-zinc-400">Desired</dt>
       <dd class="capitalize text-neutral-50">{{$view.DesiredState}}</dd>
     </div>
-    <div class="col-span-2">
+    <div>
+      <dt class="text-zinc-400">Running for</dt>
+      <dd
+        class="text-neutral-50"
+        data-running-since="{{if and (eq $view.Status "running") (not $view.RunningSince.IsZero)}}{{$view.RunningSince.Format "2006-01-02T15:04:05.000Z07:00"}}{{end}}"
+      >—</dd>
+    </div>
+    <div>
       <dt class="text-zinc-400">Address</dt>
       <dd class="font-mono text-neutral-50">
         {{if $view.NodeIP}}{{$view.NodeIP}}:{{$view.NodePort}}{{else}}—{{end}}
