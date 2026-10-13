@@ -13,7 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const PVC_STORAGE_AMOUNT = "10Gi"
+const (
+	PVC_STORAGE_AMOUNT = "10Gi"
+)
+
+var gracePeriod int64 = 120
 
 func HashCfg(vCfg ValheimConfig) (string, error) {
 	b, err := json.Marshal(vCfg)
@@ -94,6 +98,7 @@ func (m *ServerManager) BuildDeployment() (*appsv1.Deployment, error) {
 							},
 						},
 					},
+					TerminationGracePeriodSeconds: &gracePeriod,
 				},
 			},
 		},
