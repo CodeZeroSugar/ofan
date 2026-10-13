@@ -44,7 +44,6 @@ Browser / API clients (JSON ↔ HTML via Accept header)
 ## Stack
 
 - Go 1.26
-- testify throughout (`go test ./... -race -count=1` green)
 - client-go (informers + registry)
 - modernc SQLite
 - JWT + Argon2id
@@ -52,7 +51,17 @@ Browser / API clients (JSON ↔ HTML via Accept header)
 
 ## Getting started (current state)
 
-Prerequisites: Go 1.26+, a k3s cluster with kubeconfig, and a `.env` file (port, session secret, root credentials, namespace — see `cmd/server/config.go` for the full list). Build with `go build ./...`, run the server, and exercise the full lifecycle against a live cluster with `scripts/smoke.sh` (auth → lifecycle → delete/purge). First boot creates a `root` user with mandatory password change before any other route unlocks. Schema changes during development: delete `data/*.db` and let migrations rebuild (dev only). If the machine changes networks, restart k3s so the cluster picks up the new address before smoking.
+### Prerequisites
+
+- Go 1.26+
+- k3s cluster with kubeconfig
+- `.env` file (port, session secret, root credentials, namespace — see `cmd/server/config.go` for the full list)
+
+### Quickstart
+
+1. Build with `go build ./...`
+2. `./ofan` to run the server. First boot creates a `root` user with mandatory password change before any other route unlocks.
+3. Access web dashboard `http://localhost:8080/login`
 
 ## Roadmap
 
