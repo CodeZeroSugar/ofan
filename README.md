@@ -66,7 +66,7 @@ Browser / API clients (JSON ↔ HTML via Accept header)
 ## Roadmap
 
 - **Deploy anywhere**: Dockerfile, Kubernetes manifests, and a setup script for local or existing clusters.
-- **Shutdown safety + drain**: graceful pod termination matched to the game’s save timeout, optional scale-to-zero drain on server shutdown.
+- **Shutdown safety** ✅ (pod grace period); **drain** pending: graceful pod termination matched to the game’s save timeout, optional scale-to-zero drain on server shutdown.
 - **Later**: live player counts/metrics dashboard, out-of-game (Discord/webhook) notifications, readiness reporting.
 
 ## Status
