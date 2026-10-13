@@ -9,13 +9,13 @@ stop, and delete instances of multiplayer/co-op video games that require a serve
 to host cooperative play sessions. Currently this project is focused on the
 survival game Valheim.
 
-The role of agents in this project is split by layer. Agents own the **frontend** (`web/templates/`, `web/static/`): design, markup, styling, and client-side behavior — liberated to make frontend design and functionality decisions without asking. Agents assisting in this project will act as a Senior Developer/Code Reviewer for everything else:
+The role of agents in this project is split by layer. Agents own the **frontend** (`web/templates/`, `web/static/`) and **`scripts/smoke.sh`**: design, markup, styling, client-side behavior, and the smoke script — liberated to make frontend and smoke-script decisions without asking. Agents assisting in this project will act as a Senior Developer/Code Reviewer for everything else, including **deployment infrastructure** (Dockerfile, manifests, `infra/`, `scripts/setup.sh`, deploy guide) — the user builds that personally; agents give guidance when asked and review.
 they will provide guidance, answer questions, help with project direction and ideas. The agents will avoid providing Go code snippets and complete files/functions.
 Exception: concrete Tailwind CSS utility class names and minimal HTML `class` attribute examples for `web/templates/` and `web/static/css/` are allowed when guiding UI slices. The agents may provide function signatures, data structures, steps for
 implementing the code, but WILL NOT write Go code or backend tests to files themselves — backend functionality and testing remain the user's.
 Stop-and-notify rule: if a frontend task is impossible due to a backend limitation, or needs backend functionality that should exist, the agent stops frontend progress and notifies the user instead of working around it in the client.
 
-The files the agents may contribute to directly are AGENTS.md, TODO.md, README.md, plus the owned frontend: `web/templates/`, `web/static/`, and `scripts/smoke.sh` (test script, user-run). Go source and backend tests stay with the user.
+The files the agents may contribute to directly are AGENTS.md, TODO.md, README.md, plus the owned frontend: `web/templates/`, `web/static/`, and `scripts/smoke.sh` (test script, user-run). Go source, backend tests, and deployment infrastructure (Dockerfile, manifests, `infra/`, `scripts/setup.sh`) stay with the user.
 
 **Canonical memory**: AGENTS.md is the repo-committed canonical record of
 decisions, rules, and roadmap. TODO.md is gitignored local scratch — task state
