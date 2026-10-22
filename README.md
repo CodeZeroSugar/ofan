@@ -1,74 +1,94 @@
 # Ofan
 
-**Self-hosted orchestration for Valheim dedicated servers — declare the servers you want, Ofan converges your cluster onto them.** Under active development.
+Ofan is a self-hosted manager for Valheim dedicated servers. You describe the servers you want in a web dashboard, and Ofan creates, runs, repairs, and removes them on a Kubernetes cluster.
 
-## What's Ofan?
+**Status:** In active development. Not yet ready for general use. Expected MVP before the end of 2026.
 
-Hosting your own Valheim co-op shouldn't be a hassle and should be just as economical as paying for a third-party hosting service. Ofan bundles all the infrastructure needed for running your own Valheim servers and provides a lightweight web UI for convenient server and user management.
+## Why Ofan
 
-Instead of managing machines, ports, worlds, and mods by hand, Ofan provides a compact declarative platform -- a Go service backed by SQLite and Kubernetes (k3s) that provisions, repairs, and tears down game servers based on what the user defines in the web UI.
+Running your own Valheim server means handling ports, world files, mods, and restarts by hand. Hosted providers solve that but charge monthly. Ofan aims to give you the same convenience on hardware you already own, with a simple web UI for creating and managing servers and the users who play on them.
 
-## What works today
+## How it works
 
-- **Declarative controller** — SQLite rows are desired state, the cluster is actual state; a reconcile loop (30s ticker + handler pokes) converges the two. API handlers never touch Kubernetes directly — they update the row and poke.
-- **Full server lifecycle** — create, start, stop, and crash-safe delete, with persistent storage preserved by default and explicit purge paths.
-- **Self-healing escalation ladder** — every pass applies idempotent soft fixes; every 5th consecutive API failure triggers a graceful hard reset (teardown → bounded wait → fresh rebuild, PVC preserved). No failure gates, no manual retries; the loop never gives up.
-- **Drift handling** — cluster resources with no DB row are torn down after consecutive passes (storage preserved); the controller never adopts or invents rows. Deliberate `kubectl delete`s get re-provisioned because the DB is the source of truth.
-- **Auth that fits both machines and browsers** — JWT via `Bearer` header or `HttpOnly` cookie, role-based access (root/admin/user) plus row-level ownership, self-targeting guards, and mandatory root password bootstrap on fresh databases.
-- **Live config updates** — editable settings diff against a live config-hash annotation and apply in the same pass; server ports and world names are frozen after creation (change requires recreate).
-- **Web dashboard** — log in (browser keeps you signed in; first boot forces a root password change), then manage everything visually: server cards show live status and health with start, stop, transfer, edit, and delete actions; a creation form offers one-click defaults or full customization; each server has a detail page with live settings editing (ports and world names are frozen after creation); admins get user management, orphaned-storage cleanup, and guarded system controls; everyone gets a settings page with password change. Lists refresh live every few seconds.
-- **Operational visibility** — pod informer surfaces waiting reasons, restart counts, and node IPs; `CrashLoopBackOff` escalates to `failed` health.
+You manage servers from a web dashboard. Ofan stores what you asked for in a small database. A background controller compares that record with what is actually running in the cluster and makes the two match, every 30 seconds or sooner after a change.
+
+```
+Browser / API client
+        │ HTTP
+┌───────▼────────┐  poke   ┌──────────────────┐
+│  Web + API     │ ──────▶ │    Controller    │
+│  (writes rows) │         │ (makes it true)  │
+└───────┬────────┘         └───────┬──────────┘
+        ▼                          ▼
+  SQLite database          Kubernetes (k3s)
+  (what you want)          (what is running)
+```
+
+## Features
+
+- **Server lifecycle:** create, start, stop, and delete servers. Deleting keeps the world save unless you explicitly purge it.
+- **Self-repair:** if a server breaks, Ofan retries fixes on every pass and performs a clean rebuild after repeated failures. Saved worlds are kept during rebuilds.
+- **Live settings:** change most server settings on a running server and they apply automatically. Ports and world names are fixed at creation, so changing them means creating a new server.
+- **Accounts:** a root administrator, admins, and regular users. Users manage only their own servers unless an admin transfers ownership.
+- **Web dashboard:** server cards with live status, a form to create servers with defaults or full customization, a detail page for editing settings, an admin page for users and storage, and a page to change your password.
+- **Status reporting:** shows when a server is starting, running, or failing, along with restart counts and how long it has been running.
 
 ## Design decisions
 
-- **Tombstones over direct deletes** — deletes are state transitions the controller consumes, so crashes mid-teardown resume safely instead of leaking resources.
-- **No orphaned resource adoption** — a cluster resource without a DB row is drift to be removed, not state to be learned. Reattachment is a deliberate act (recreate the same-named server onto the preserved PVC).
-- **Ownership lives only in the database** — no ownership labels in Kubernetes; the row is the single authority.
-- **Boring frontend** — HTMX for live page fragments, plain JavaScript for form submissions, Go templates for markup. No JS framework, no build step beyond styling.
+These choices shape how Ofan behaves. They are kept deliberately simple so the system stays predictable.
+
+- **The database is the source of truth.** Ofan records what you asked for in SQLite. The cluster is only ever brought into line with that record, never the other way around. If someone deletes a server's resources by hand in Kubernetes, Ofan recreates them.
+- **Deletes are recorded, not performed immediately.** Removing a server marks it as "to be deleted" in the database. The controller carries out the teardown and clears the record when finished. If Ofan restarts mid-delete, it picks up where it left off instead of leaking resources.
+- **Unknown resources are removed, not adopted.** A Kubernetes resource with no matching database record is treated as leftover and cleaned up, with its storage kept. Ofan never invents records for resources it finds. To reuse preserved storage, you create a server with the same name on purpose.
+- **Ownership lives in the database only.** Kubernetes objects carry no owner labels. The database row is the single authority for who owns what.
+- **Plain web frontend.** Server-rendered Go templates, HTMX for live page fragments, and small JavaScript for form submissions. There is no JavaScript framework and no build step beyond CSS.
+- **Authentication:** sessions use signed tokens, sent as an `HttpOnly` cookie for browsers or a `Bearer` header for API clients. The first boot forces a root password change before any other page unlocks.
 
 ## Architecture
 
-```
-Browser / API clients (JSON ↔ HTML via Accept header)
-        │ HTTPS
-┌───────▼────────┐    poke     ┌──────────────────┐
-│  HTTP handlers │ ─────────▶  │    Controller    │
-│  (rows + Poke) │             │ (rows → cluster) │
-└───────┬────────┘             └───────┬──────────┘
-        │                              │
-        ▼                              ▼
-   SQLite (desired)            k3s via client-go (actual)
-   servers · users             Deployments · Services · PVCs · ConfigMaps
-```
+- **Web and API:** HTTP handlers validate requests, update the database, and wake the controller. They never change Kubernetes directly. The one exception is deleting a leftover storage volume on request.
+- **Controller:** runs a reconcile loop that compares database records with the cluster and applies changes. It uses Kubernetes informers to watch the cluster efficiently rather than polling it.
+- **Storage:** SQLite (pure Go, no external database server) holds servers and users. Each game server keeps its world on a Kubernetes persistent volume, which survives restarts and redeployments.
 
 ## Stack
 
 - Go 1.26
-- client-go (informers + registry)
-- modernc SQLite
-- JWT + Argon2id
-- HTMX + Go templates + Tailwind CSS for styling
+- Kubernetes client-go (informers and typed clients)
+- SQLite via `modernc.org/sqlite` (no CGO)
+- Argon2id password hashing, JWT sessions
+- HTMX, Go `html/template`, Tailwind CSS
 
-## Getting started (current state)
+## Getting started
+
+Installation is not yet packaged. A one-command install guide is planned as part of deployment work. For now, you need a development setup.
 
 ### Prerequisites
 
-- Go 1.26+
-- k3s cluster with kubeconfig
-- `.env` file (port, session secret, root credentials, namespace — see `cmd/server/config.go` for the full list)
+- Go 1.26 or newer
+- A Kubernetes cluster, such as k3s, with a working kubeconfig
+- A `.env` file in the project root. The full list of settings is in `cmd/server/config.go`. The essentials are:
+  - `OFAN_SESSION_SECRET`: a long random string for signing sessions
+  - `OFAN_ROOT_PASS`: the initial root password
+  - `KUBECONFIG_PATH`: path to your kubeconfig
+  - `DEFAULT_NAMESPACE`: the Kubernetes namespace game servers are created in
 
-### Quickstart
+### Run it
 
-1. Build with `go build ./...`
-2. `./ofan` to run the server. First boot creates a `root` user with mandatory password change before any other route unlocks.
-3. Access web dashboard `http://localhost:8080/login`
+```bash
+go build ./...
+./ofan
+```
+
+Open `http://localhost:8080/login` and sign in as `ofan-root` with the password from your `.env`. You will be asked to choose a new password before anything else unlocks.
+
+The server runs over plain HTTP. If you expose it beyond your own machine, put it behind a reverse proxy that handles TLS.
 
 ## Roadmap
 
-- **Deploy anywhere**: Dockerfile, Kubernetes manifests, and a setup script for local or existing clusters.
-- **Shutdown safety** ✅ (pod grace period); **drain** pending: graceful pod termination matched to the game’s save timeout, optional scale-to-zero drain on server shutdown.
-- **Later**: live player counts/metrics dashboard, out-of-game (Discord/webhook) notifications, readiness reporting.
+- **Deployment:** container image (done), Kubernetes manifests, and a guided install script for local or existing clusters
+- **Graceful drain:** optionally scale servers down cleanly when Ofan itself shuts down. Pod shutdown timing is already set to give worlds time to save.
+- **Later:** live player counts and metrics, Discord or webhook notifications, readiness reporting
 
-## Status
+## License and contact
 
-Solo project, in active development, MVP expected before the end of 2026. Feedback and questions welcome via GitHub issues.
+Solo project. Feedback, bug reports, and questions are welcome through GitHub issues.
