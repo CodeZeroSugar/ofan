@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ofan
+  namespace: ofan
+  labels:
+    app: ofan
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ofan
+  template:
+    metadata:
+      labels:
+        app: ofan
+    spec:
+      serviceAccountName: ofan
+      securityContext:
+        fsGroup: 65532
+      containers:
+        - name: ofan
+          image: ghcr.io/codezerosugar/ofan:v0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DEFAULT_NAMESPACE
+              value: "ofan"
+            - name: OFAN_DB_PATH
+              value: "/data/ofan.db"
+            - name: OFAN_ROOT_USER
+              value: "ofan-root"
+            - name: OFAN_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ofan-app
+                  key: OFAN_SESSION_SECRET
+            - name: OFAN_ROOT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ofan-app
+                  key: OFAN_ROOT_PASS
+          volumeMounts:
+            - name: ofan-data
+              mountPath: "/data"
+          readinessProbe:
+            httpGet:
+              path: "/healthz"
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: "/healthz"
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+      volumes:
+        - name: ofan-data
+          persistentVolumeClaim:
+            claimName: ofan-data

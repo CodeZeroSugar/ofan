@@ -1,7 +1,7 @@
 package k8s
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -11,8 +11,11 @@ import (
 )
 
 func NewClientSet(kubeConfigPath string) (*kubernetes.Clientset, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
+	var config *rest.Config
+	var err1 error
+	var err2 error
+	config, err1 = rest.InClusterConfig()
+	if err1 != nil {
 		kubeconfig := kubeConfigPath
 		if kubeconfig == "" {
 			kubeconfig = os.Getenv("KUBECONFIG")
@@ -21,9 +24,10 @@ func NewClientSet(kubeConfigPath string) (*kubernetes.Clientset, error) {
 			home, _ := os.UserHomeDir()
 			kubeconfig = filepath.Join(home, ".kube", "config")
 		}
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("unable to load kubeconfig from %s: %w", kubeconfig, err)
+		config, err2 = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err2 != nil {
+			configErrs := errors.Join(err1, err2)
+			return nil, configErrs
 		}
 	}
 	config.QPS = 50
