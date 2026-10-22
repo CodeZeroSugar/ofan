@@ -4,3 +4,10 @@ metadata:
   name: ofan
   labels:
     name: ofan
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ofan-games
+  labels:
+    name: ofan-games
