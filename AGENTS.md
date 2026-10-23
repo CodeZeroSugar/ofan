@@ -260,8 +260,9 @@ user's to perform.
 - **Deploy anywhere** (in progress — goal: a non-technical user goes from nothing to a working dashboard login via one short guide):
   - D2 Container image ✅ — distroless multi-stage image, `ghcr.io/codezerosugar/ofan` (public), pinned tags `v0.1.0`, `v0.1.1`.
   - D3 Manifests ✅ — `infra/` split into manager namespace `ofan` and game namespace `ofan-games`; RBAC scoped per namespace; NodePort 30080 UI.
-  - D4 `scripts/setup.sh` guided installer — next.
-  - D5 Guide (README or `docs/DEPLOY.md`), D6 fresh-environment proof (guide top to bottom + `smoke.sh` green), D7 DHCP-proof home deployments (see Roadmap in TODO.md).
+  - D4 `setup.sh` installer (repo root) ✅ — secrets, apply order, rollout wait, URL and root password on fresh install.
+  - D5 Install guide ✅ drafted in README "Getting started" (Ubuntu Server + k3s, targeted at non-technical users).
+  - D6 fresh-environment proof (guide top to bottom on a clean VM + `smoke.sh` green) — next. D7 DHCP-proof home deployments (see Roadmap in TODO.md).
 
 ## Backlog
 

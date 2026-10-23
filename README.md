@@ -2,7 +2,7 @@
 
 Ofan is a self-hosted manager for Valheim dedicated servers. You describe the servers you want in a web dashboard, and Ofan creates, runs, repairs, and removes them on a Kubernetes cluster.
 
-**Status:** In active development. Not yet ready for general use. Expected MVP before the end of 2026.
+**Status:** In active development. The install guide is written but has not yet been tested on a fresh machine. Expected MVP before the end of 2026.
 
 ## Why Ofan
 
@@ -19,7 +19,149 @@ Running your own Valheim server means handling ports, world files, mods, and res
 
 ## Getting started
 
-Installation is not yet packaged. A one-command install guide is planned as part of deployment work. For now, you need a development setup.
+Ofan runs on a computer in your home. You install one small system tool (k3s), run one script, and then manage your servers in a web browser. Plan on about 30 minutes, plus download time.
+
+### What you need
+
+- **A computer running Ubuntu Server 26.04 LTS.** [Download it here](https://ubuntu.com/download/server). Ubuntu Desktop also works, but this guide is written for Server.
+- **Memory and processor:** at least 4 GB of RAM and 2 processor cores for the dashboard and one Valheim server. The Valheim server's own recommendation is 8 GB and 4 cores, and more players need more. See [the Valheim server documentation](https://github.com/community-valheim-tools/valheim-server-docker).
+- **Disk space:** about 20 GB free. That covers the system, the Valheim download (about 1 GB), and saved worlds. This is an estimate and will be refined after testing.
+- **A wired network connection** is recommended. Wi-Fi works, but computers on Wi-Fi more often get a new address.
+- **A second computer** on the same network with a web browser, to open the dashboard.
+
+Ofan is designed for your home network. Do not expose it to the internet.
+
+### Step 1: Install k3s
+
+k3s is a small Kubernetes system. Ofan uses it to run the dashboard and your game servers. Open a terminal on the server (or connect to it over SSH) and run:
+
+```bash
+curl -sfL https://get.k3s.io | sudo sh -
+```
+
+`sudo` means "run as administrator," so it will ask for your password. The install takes a minute or two. To confirm it worked:
+
+```bash
+sudo k3s kubectl get nodes
+```
+
+You should see one line ending in `Ready`. If it says `NotReady`, wait a minute and run the command again.
+
+The [k3s quick start](https://docs.k3s.io/quick-start) has more detail on what the install does.
+
+### Step 2: Open the firewall
+
+Ubuntu's firewall, [UFW](https://help.ubuntu.com/community/UFW), is off by default. Check its status:
+
+```bash
+sudo ufw status
+```
+
+- If it says `Status: inactive`, skip the rest of this step.
+- If it says `Status: active`, allow SSH first so you do not lock yourself out, then open the dashboard port:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 30080/tcp
+```
+
+Each Valheim server gets its own port, between 30000 and 32767. The port is shown on the server's card in the dashboard, and you need to allow it for friends to connect. For example, if the card shows `192.168.1.50:30643`:
+
+```bash
+sudo ufw allow 30643/udp
+```
+
+### Step 3: Get Ofan
+
+Install `git`, then download Ofan and move into its folder:
+
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/CodeZeroSugar/ofan.git
+cd ofan
+```
+
+### Step 4: Run the installer
+
+```bash
+sudo bash setup.sh
+```
+
+The installer prints a banner, then sets up Ofan. It can take several minutes while the first images download. When it finishes, it prints the address of your dashboard.
+
+On the first install, it also prints your **root password**. Copy it somewhere safe now. If you run the installer again later, it will say the existing password is unchanged, and it will not print it again.
+
+If the installer stops with an error, it prints the most recent log lines from Ofan. See [Troubleshooting](#troubleshooting) below.
+
+### Step 5: Log in and change your password
+
+Open the address from Step 4 in a browser on your other computer. It looks like `http://192.168.1.50:30080`.
+
+- **Username:** `ofan-root`
+- **Password:** the root password from Step 4
+
+You will be asked to choose a new password before anything else unlocks. Write the new password down. The installer only knows the original password, so after you change it, the one it printed no longer works.
+
+### Step 6: Create your first server
+
+1. Click **Create**.
+2. Choose a name and a server password. Leave the other settings at their defaults for now.
+3. Click **Create**, then start the server.
+
+The first start downloads Valheim, about 1 GB, so it can take several minutes. The card shows **Running** when it's ready, and it shows the address to connect to.
+
+To join from Valheim, choose **Join Game**, then **Join IP**, and enter the address from the card. Use the server password you set.
+
+### Step 7: Keep it working
+
+- **Deleting a server keeps its world** unless you choose to purge it. You can create a server with the same name later to get the world back.
+- **After a network change**, the server's address may change, and the dashboard may stop responding. Run this to restart the system:
+
+  ```bash
+  sudo systemctl restart k3s
+  ```
+
+  Then wait a minute and reload the dashboard. k3s also starts again automatically after a reboot.
+- **Prevent address changes** by giving the server a fixed address in your router. Look in your router's manual for "DHCP reservation," "static lease," or "address reservation." Set it for this computer's MAC address.
+
+### Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| `Permission denied` when running `setup.sh` | Run it as `sudo bash setup.sh` instead. |
+| `The connection to the server ... was refused` | k3s is not running. Run `sudo systemctl restart k3s`, wait a minute, and try again. |
+| The installer stops with an error | It prints recent Ofan logs. To see them again, run `sudo k3s kubectl -n ofan logs deploy/ofan --tail=30`. |
+| The dashboard does not load | Check the address with `ip address`. If `ufw` is active, make sure port 30080 is allowed (Step 2). |
+| The root password is not accepted | If you changed it in the dashboard, use the new one. The installer's password only works until you change it. |
+| A friend cannot connect to your server | Make sure the server's UDP port is allowed in UFW (Step 2). If the friend is outside your home network, your router must forward that port to this computer. Check your router's manual. |
+| The server stays on "starting" for a long time | The first start downloads about 1 GB. Wait 10 minutes before assuming there is a problem. |
+
+If you forget the root password, Ofan cannot reset it without deleting its stored data. Keep your password written down.
+
+### Safety notes
+
+- Ofan is for your home network only. Do not forward port 30080 from your router.
+- The dashboard uses plain HTTP, which means traffic is not encrypted. Anyone on your network who can watch traffic could read a password as it is typed. Use a password you do not use anywhere else.
+- Only run installers you trust. `setup.sh` runs as administrator.
+
+### Helpful links
+
+**Setup tools**
+- [Ubuntu Server download](https://ubuntu.com/download/server)
+- [k3s quick start](https://docs.k3s.io/quick-start)
+- [UFW firewall guide](https://help.ubuntu.com/community/UFW)
+
+**Valheim**
+- [Valheim on Steam](https://store.steampowered.com/app/892970/Valheim/)
+- [Valheim server container documentation](https://github.com/community-valheim-tools/valheim-server-docker), covering system requirements, ports, backups, and finding your server
+
+**Ofan**
+- [Source code](https://github.com/CodeZeroSugar/ofan)
+- [Report a problem](https://github.com/CodeZeroSugar/ofan/issues)
+
+## Developer setup
+
+This is for working on Ofan itself. You need Go and a development cluster.
 
 ### Prerequisites
 
@@ -92,7 +234,7 @@ These choices shape how Ofan behaves. They are kept deliberately simple so the s
 
 ## Roadmap
 
-- **Deployment:** container image (done), Kubernetes manifests, and a guided install script for local or existing clusters
+- **Deployment:** container image, Kubernetes manifests, and installer script (done). Install guide written; fresh-machine test pending.
 - **Graceful drain:** optionally scale servers down cleanly when Ofan itself shuts down. Pod shutdown timing is already set to give worlds time to save.
 - **Later:** live player counts and metrics, Discord or webhook notifications, readiness reporting
 
