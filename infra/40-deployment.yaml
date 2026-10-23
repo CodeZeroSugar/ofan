@@ -22,7 +22,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: ofan
-          image: ghcr.io/codezerosugar/ofan:v0.1.0
+          image: ghcr.io/codezerosugar/ofan:v0.1.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

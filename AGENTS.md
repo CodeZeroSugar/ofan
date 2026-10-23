@@ -229,6 +229,13 @@ user's to perform.
   nil-replicas deployment reports `provisioning`, not `stopped`.
 - Rowless uptime: `IsZero()` fallback to registry `CreatedAt` when the DB row
   is missing.
+- Registry seeding: `StartInformerManager` replays the informer stores after
+  `WaitForCacheSync` in deployment → service → pod order. Pod and service upserts
+  are `UpdateIfExists`, so cross-informer event order must never be trusted —
+  without the seed, a manager restart can leave `NodeIP`/`RunningSince` blank
+  until the 10-minute resync. Do not switch them to plain `Upsert`: `DeleteAll`
+  deletes the Deployment first, and terminating-pod updates would recreate
+  phantom registry entries that drift teardown later tombstones.
 - sqlite: `SetMaxOpenConns(1)`, WAL + `foreign_keys` pragmas; FK-safe delete
   order is `servers` before `users`.
 - `MarkDeleting` is UPDATE-only — rowless orphans need `InsertOrphanTombstone`
@@ -250,7 +257,11 @@ user's to perform.
 - **In-game notifications**: infeasible in vanilla Valheim (no RCON, no server console, no broadcast). Discord/webhook out-of-game notifications deferred to a future pass.
 - **Config updates on running servers** ✅ COMPLETE — `PUT /api/v1/servers/{name}/config` → validate → update row's `config_json` → poke → reconciler diffs row hash vs live `ofan.io/config-hash` annotation and applies (`ApplyConfig`, same pass). **Ports + world frozen** (change = delete+recreate; PUT rejects with 400). `SERVER_PASS` ≥5 enforced. Notification stub + Discord/email still deferred.
 - **Web GUI (HTMX + Go templates + Tailwind standalone CLI — no JS framework)** ✅ COMPLETE: login (cookie + first-run password change), live server list, create form (defaults or full custom config), per-server detail with live config editing, kebab actions (start/stop/transfer/delete/edit), admin hub (users, orphaned storage, danger zone), settings (password change). Dual-format handlers (Accept-branch on success, errors stay JSON); templates embedded via `web/embed.go`. Frontend contract (htmx fragments vs `fetch` typed writes) recorded under Tech stack & policies.
-- **Deploy anywhere**: Dockerfile, k8s manifests (Deployment + Service + ClusterRole + PVC for sqlite + secret for session secret/admin), `scripts/setup.sh` (k3s local or existing cluster).
+- **Deploy anywhere** (in progress — goal: a non-technical user goes from nothing to a working dashboard login via one short guide):
+  - D2 Container image ✅ — distroless multi-stage image, `ghcr.io/codezerosugar/ofan` (public), pinned tags `v0.1.0`, `v0.1.1`.
+  - D3 Manifests ✅ — `infra/` split into manager namespace `ofan` and game namespace `ofan-games`; RBAC scoped per namespace; NodePort 30080 UI.
+  - D4 `scripts/setup.sh` guided installer — next.
+  - D5 Guide (README or `docs/DEPLOY.md`), D6 fresh-environment proof (guide top to bottom + `smoke.sh` green), D7 DHCP-proof home deployments (see Roadmap in TODO.md).
 
 ## Backlog
 
