@@ -62,6 +62,28 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 			return nil, fmt.Errorf("timed out waiting for %s cache sync", informerType)
 		}
 	}
+
+	deps := deployInformer.Informer().GetStore().List()
+	for _, d := range deps {
+		obj, ok := d.(*appsv1.Deployment)
+		if ok {
+			mgr.upsertDeployment(obj)
+		}
+	}
+	svcs := serviceInformer.Informer().GetStore().List()
+	for _, s := range svcs {
+		obj, ok := s.(*corev1.Service)
+		if ok {
+			mgr.upsertService(obj)
+		}
+	}
+	pods := podInformer.Informer().GetStore().List()
+	for _, p := range pods {
+		obj, ok := p.(*corev1.Pod)
+		if ok {
+			mgr.upsertPod(obj)
+		}
+	}
 	log.Println("informer synced, watching for events...")
 
 	return mgr, nil
