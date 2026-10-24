@@ -241,3 +241,7 @@ These choices shape how Ofan behaves. They are kept deliberately simple so the s
 ## License and contact
 
 Solo project. Feedback, bug reports, and questions are welcome through GitHub issues.
+
+Ofan is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 CodeZeroSugar.
+
+Ofan is not affiliated with, endorsed by, or sponsored by Iron Gate AB or Coffee Stain Publishing. Valheim is developed by Iron Gate AB and published by Coffee Stain Publishing. Ofan does not include any Valheim game files. Each server downloads the game from Steam when it starts, using the community-maintained [valheim-server-docker](https://github.com/community-valheim-tools/valheim-server-docker) image.
