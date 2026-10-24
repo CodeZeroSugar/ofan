@@ -66,7 +66,7 @@ func (s *apiSuite) TestCreate_Valid() {
 	s.cfg.HandlerCreateGameServer(s.rr, req)
 
 	s.Require().Equal(http.StatusAccepted, s.rr.Code)
-	s.Assert().Contains(s.rr.Body.String(), `"status":"provisioning"`)
+	s.Assert().Contains(s.rr.Body.String(), `"message":"creating`)
 	_, ok := s.cfg.InformerManager.Registry.Get("alpha")
 	s.Assert().True(ok)
 }
@@ -105,7 +105,7 @@ func (s *apiSuite) TestCreate_Conflict() {
 	s.cfg.HandlerCreateGameServer(s.rr, req)
 
 	s.Require().Equal(http.StatusAccepted, s.rr.Code)
-	s.Assert().Contains(s.rr.Body.String(), `"status":"provisioning"`)
+	s.Assert().Contains(s.rr.Body.String(), `"message":"creating`)
 	_, ok := s.cfg.InformerManager.Registry.Get("alpha")
 	s.Assert().True(ok)
 

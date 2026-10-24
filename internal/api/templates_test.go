@@ -42,20 +42,15 @@ func TestTemplates_Create(t *testing.T) {
 	tmpls, err := web.ParseTemplates()
 	require.NoError(t, err)
 
-	cfg := k8s.DefaultValheimConfig("alpha", "secret123")
-	opts := k8s.NewServerOpts("alpha", "secret123", &cfg)
-
-	data := provisionResponse{
-		ServerName:    "alpha",
-		Status:        "provisioning",
-		ServerOptions: opts,
+	data := struct {
+		IsAdmin bool
+	}{
+		IsAdmin: true,
 	}
 
 	buffer := &bytes.Buffer{}
 	require.NoError(t, tmpls.ExecuteTemplate(buffer, "create", data))
-	assert.Contains(t, buffer.String(), "alpha")
-	assert.Contains(t, buffer.String(), "provisioning")
-	assert.Contains(t, buffer.String(), "secret123")
+	assert.Contains(t, buffer.String(), "true")
 }
 
 func TestTemplates_View(t *testing.T) {
