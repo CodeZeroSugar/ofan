@@ -1,5 +1,7 @@
 # Ofan
 
+![alt text goes here](https://github.com/CodeZeroSugar/ofan/actions/workflows/ci.yml/badge.svg)
+
 Ofan is a self-hosted manager for Valheim dedicated servers. You describe the servers you want in a web dashboard, and Ofan creates, runs, repairs, and removes them on a Kubernetes cluster.
 
 **Status:** In active development. The install guide is written but has not yet been tested on a fresh machine. Expected MVP before the end of 2026.
@@ -122,19 +124,20 @@ To join from Valheim, choose **Join Game**, then **Join IP**, and enter the addr
   ```
 
   Then wait a minute and reload the dashboard. k3s also starts again automatically after a reboot.
+
 - **Prevent address changes** by giving the server a fixed address in your router. Look in your router's manual for "DHCP reservation," "static lease," or "address reservation." Set it for this computer's MAC address.
 
 ### Troubleshooting
 
-| What you see | What to do |
-|---|---|
-| `Permission denied` when running `setup.sh` | Run it as `sudo bash setup.sh` instead. |
-| `The connection to the server ... was refused` | k3s is not running. Run `sudo systemctl restart k3s`, wait a minute, and try again. |
-| The installer stops with an error | It prints recent Ofan logs. To see them again, run `sudo k3s kubectl -n ofan logs deploy/ofan --tail=30`. |
-| The dashboard does not load | Check the address with `ip address`. If `ufw` is active, make sure port 30080 is allowed (Step 2). |
-| The root password is not accepted | If you changed it in the dashboard, use the new one. The installer's password only works until you change it. |
-| A friend cannot connect to your server | Make sure the server's UDP port is allowed in UFW (Step 2). If the friend is outside your home network, your router must forward that port to this computer. Check your router's manual. |
-| The server stays on "starting" for a long time | The first start downloads about 1 GB. Wait 10 minutes before assuming there is a problem. |
+| What you see                                   | What to do                                                                                                                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Permission denied` when running `setup.sh`    | Run it as `sudo bash setup.sh` instead.                                                                                                                                                  |
+| `The connection to the server ... was refused` | k3s is not running. Run `sudo systemctl restart k3s`, wait a minute, and try again.                                                                                                      |
+| The installer stops with an error              | It prints recent Ofan logs. To see them again, run `sudo k3s kubectl -n ofan logs deploy/ofan --tail=30`.                                                                                |
+| The dashboard does not load                    | Check the address with `ip address`. If `ufw` is active, make sure port 30080 is allowed (Step 2).                                                                                       |
+| The root password is not accepted              | If you changed it in the dashboard, use the new one. The installer's password only works until you change it.                                                                            |
+| A friend cannot connect to your server         | Make sure the server's UDP port is allowed in UFW (Step 2). If the friend is outside your home network, your router must forward that port to this computer. Check your router's manual. |
+| The server stays on "starting" for a long time | The first start downloads about 1 GB. Wait 10 minutes before assuming there is a problem.                                                                                                |
 
 If you forget the root password, Ofan cannot reset it without deleting its stored data. Keep your password written down.
 
@@ -147,15 +150,18 @@ If you forget the root password, Ofan cannot reset it without deleting its store
 ### Helpful links
 
 **Setup tools**
+
 - [Ubuntu Server download](https://ubuntu.com/download/server)
 - [k3s quick start](https://docs.k3s.io/quick-start)
 - [UFW firewall guide](https://help.ubuntu.com/community/UFW)
 
 **Valheim**
+
 - [Valheim on Steam](https://store.steampowered.com/app/892970/Valheim/)
 - [Valheim server container documentation](https://github.com/community-valheim-tools/valheim-server-docker), covering system requirements, ports, backups, and finding your server
 
 **Ofan**
+
 - [Source code](https://github.com/CodeZeroSugar/ofan)
 - [Report a problem](https://github.com/CodeZeroSugar/ofan/issues)
 
