@@ -111,16 +111,6 @@ func seedFailures(t *testing.T, store *db.Store, name string, n int) {
 	}
 }
 
-func getDeployment(t *testing.T, cs *fake.Clientset, name string) *appsv1.Deployment {
-	t.Helper()
-	d, err := cs.AppsV1().Deployments(testNS).Get(context.Background(),
-		name, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("deployment '%s' not found: %v", name, err)
-	}
-	return d
-}
-
 func deploymentExists(cs *fake.Clientset, name string) bool {
 	_, err := cs.AppsV1().Deployments(testNS).Get(context.Background(), name, metav1.GetOptions{})
 	return err == nil
@@ -740,6 +730,7 @@ func TestRunning_InSyncNoOp(t *testing.T) {
 	seedDeployment(t, client, "alpha", 1)
 
 	row, err := s.GetServer(ctx, "alpha")
+	require.NoError(t, err)
 	var cfg k8s.ValheimConfig
 	require.NoError(t, json.Unmarshal([]byte(row.ConfigJSON), &cfg))
 	hash, err := k8s.HashCfg(cfg)
@@ -779,6 +770,7 @@ func TestRunning_MissingDeploymentSkipsApply(t *testing.T) {
 
 	require.NoError(t, c.Reconcile(ctx))
 	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
+	require.NoError(t, err)
 
 	assert.Equal(t, cfgAHash, dep.Spec.Template.Annotations[k8s.AnnotationConfigHash])
 }
@@ -816,6 +808,7 @@ func TestStopped_AppliesSilently(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%t", cfgA.CoreSettings.ServerPublic), data["SERVER_PUBLIC"])
 
 	secret, err := client.CoreV1().Secrets(c.namespace).Get(ctx, "alpha-secret", metav1.GetOptions{})
+	require.NoError(t, err)
 	assert.Equal(t, cfgA.CoreSettings.ServerPass, secret.StringData["SERVER_PASS"])
 
 	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})
@@ -856,6 +849,7 @@ func TestRunning_StaleAnnotation(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%t", cfgA.CoreSettings.ServerPublic), data["SERVER_PUBLIC"])
 
 	secret, err := client.CoreV1().Secrets(c.namespace).Get(ctx, "alpha-secret", metav1.GetOptions{})
+	require.NoError(t, err)
 	assert.Equal(t, cfgA.CoreSettings.ServerPass, secret.StringData["SERVER_PASS"])
 
 	dep, err := client.AppsV1().Deployments(c.namespace).Get(ctx, "alpha", metav1.GetOptions{})

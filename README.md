@@ -1,6 +1,6 @@
-# Ofan
-
 ![alt text goes here](https://github.com/CodeZeroSugar/ofan/actions/workflows/ci.yml/badge.svg)
+
+# Ofan
 
 Ofan is a self-hosted manager for Valheim dedicated servers. You describe the servers you want in a web dashboard, and Ofan creates, runs, repairs, and removes them on a Kubernetes cluster.
 

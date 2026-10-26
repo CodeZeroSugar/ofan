@@ -7,15 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/CodeZeroSugar/ofan/internal/k8s"
 )
-
-type provisionResponse struct {
-	ServerName    string         `json:"server_name"`
-	Status        string         `json:"status"`
-	ServerOptions k8s.ServerOpts `json:"server_options"`
-}
 
 type DeleteServerResponse struct {
 	ServerName    string `json:"server_name"`
@@ -41,10 +33,7 @@ func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 
 func wantsHTML(r *http.Request) bool {
 	h := r.Header.Get("Accept")
-	if strings.Contains(h, "text/html") {
-		return true
-	}
-	return false
+	return strings.Contains(h, "text/html")
 }
 
 func respondWithHTML(w http.ResponseWriter, code int, t *template.Template, name string, data interface{}) {

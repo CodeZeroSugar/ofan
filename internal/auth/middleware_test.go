@@ -285,7 +285,7 @@ func TestMiddleware_TamperedToken(t *testing.T) {
 
 	user, err := mgr.store.GetUserByUsername(ctx, "admin")
 	require.NoError(t, err)
-	stringToken, err := mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
+	_, err = mgr.IssueJWT(user.ID, user.Username, 60*time.Minute)
 	require.NoError(t, err)
 
 	var called bool
@@ -296,7 +296,7 @@ func TestMiddleware_TamperedToken(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers", nil)
-	stringToken = "oopsiewrongtoken"
+	stringToken := "oopsiewrongtoken"
 	req.AddCookie(&http.Cookie{Name: CookieName, Value: stringToken})
 	rec := httptest.NewRecorder()
 

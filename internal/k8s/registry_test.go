@@ -113,7 +113,7 @@ func TestRegistryConcurrency(t *testing.T) {
 func TestRegistryUpdateExisting(t *testing.T) {
 	r := NewServerRegistry()
 
-	entry := r.Upsert("alpha", func(s *ServerState) {
+	_ = r.Upsert("alpha", func(s *ServerState) {
 		s.Status = "running"
 		s.NodePort = 30001
 		s.QueryPort = 30002

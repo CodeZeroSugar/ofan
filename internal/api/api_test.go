@@ -396,6 +396,7 @@ func (s *apiSuite) TestStop_Conflict() {
 	err := s.cfg.Store.CreateServer(ctx, "alpha", "admin", testConfigJSON("alpha"))
 	s.Require().NoError(err)
 	err = s.cfg.Store.UpdateState(ctx, "alpha", "stopped")
+	s.Require().NoError(err)
 
 	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
 	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/alpha/stop", "{}")
@@ -432,6 +433,7 @@ func (s *apiSuite) TestTransfer_Valid() {
 
 	s.Assert().Equal(http.StatusOK, s.rr.Code)
 	owner, err := s.cfg.Store.GetServerOwner(ctx, "alpha")
+	s.Require().NoError(err)
 	s.Assert().Equal("bob", owner)
 }
 
