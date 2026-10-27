@@ -39,7 +39,7 @@ jobs:
         run: test -z "$(go fmt -l .)"
 
       - name: staticcheck
-        run: dominikh/staticcheck-action@v1
+        uses: dominikh/staticcheck-action@v1
         with:
           version: "v0.8.2"
           install-go: false
