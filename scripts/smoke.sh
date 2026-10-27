@@ -1,14 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-while IFS='=' read -r key val; do
-  [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$val"
-done < .env
+if [[ -f .env ]]; then
+  while IFS='=' read -r key val; do
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$val"
+  done < .env
+fi
 
-BASE_URL=http://localhost:$PORT
-NS="${DEFAULT_NAMESPACE:-ofan-dev}"
+: "${OFAN_ROOT_USER:?set OFAN_ROOT_USER (.env, or the ofan-app Secret on k3s)}"
+: "${OFAN_ROOT_PASS:?set OFAN_ROOT_PASS to the current root password}"
+
+if [[ "${SMOKE_CONFIRM_WIPE:-}" != 1 ]]; then
+  echo "FAIL: smoke.sh resets the database (wipes ALL users and servers). Set SMOKE_CONFIRM_WIPE=1 to run it on a test install." >&2
+  exit 1
+fi
+
+BASE_URL=${BASE_URL:-http://localhost:${PORT:-30080}}
+NS="${DEFAULT_NAMESPACE:-ofan-games}"
+RUNNING_TIMEOUT="${SMOKE_RUNNING_TIMEOUT:-900}"
 RESP=$(mktemp)
-trap 'rm -f "$RESP"' EXIT
+CREATED_NAME=""
+SMOKE_OK=""
+
+cleanup() {
+  rm -f "$RESP"
+  if [[ -n "$CREATED_NAME" && -n "${TOKEN:-}" && "$SMOKE_OK" != 1 ]]; then
+    echo ">> cleanup: removing leftover server '$CREATED_NAME' (PVC kept)" >&2
+    curl -s -o /dev/null -X POST "$BASE_URL/api/v1/servers/$CREATED_NAME/delete" \
+      -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+      -d '{"delete_storage": false}' || true
+  fi
+}
+trap cleanup EXIT
 
 assert_code() { # $1 = actual http code, $2 = expected, $3 = label
   if [[ "$1" != "$2" ]]; then
@@ -160,11 +183,13 @@ dump_debug() { # best-effort cluster snapshot on wait timeout; never fails
 }
 
 if ! kubectl get ns "$NS" >/dev/null 2>&1; then
-  echo "FAIL: namespace '$NS' not found" >&2; exit 1
+  echo "FAIL: cannot read namespace '$NS' via kubectl (missing, or no kubeconfig access). On k3s the default kubeconfig is root-only: export KUBECONFIG to a readable copy of /etc/rancher/k3s/k3s.yaml." >&2
+  exit 1
 fi
 
 # 0. cluster preflight (read-only; fail before mutating anything)
 preflight_cluster || exit 1
+echo ">> target $BASE_URL, namespace $NS"
 
 # 1. healthz
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/healthz")
@@ -186,14 +211,17 @@ SERVER_NAME="smoke-$(date +%s)"
 BODY=$(jq -n --arg n "$SERVER_NAME" --arg p "secret123" '{name:$n, password:$p}')
 api POST /api/v1/servers/create "$TOKEN" "$BODY"
 assert_code "$CODE" 202 "create server"
+CREATED_NAME="$SERVER_NAME"
 assert_jq "$BODY" '.status == "provisioning"'
 echo ">> server '$SERVER_NAME' created (provisioning)"
 
-# 4. poll until running, capture node port
-wait_for 180 --arg n "$SERVER_NAME" '.[$n].status == "running"'
+# 4. poll until running (ready pod; first run pulls the multi-GB image), capture ports
+wait_for "$RUNNING_TIMEOUT" --arg n "$SERVER_NAME" '.[$n].status == "running"'
 assert_jq "$BODY" --arg n "$SERVER_NAME" '(.[$n].node_port | type) == "number" and .[$n].node_port > 0'
+assert_jq "$BODY" --arg n "$SERVER_NAME" '(.[$n].query_port | type) == "number" and .[$n].query_port > 0'
 PORT_BEFORE=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].node_port')
-echo ">> server running (node_port $PORT_BEFORE)"
+QUERY_BEFORE=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].query_port')
+echo ">> server running (node_port $PORT_BEFORE, query_port $QUERY_BEFORE)"
 
 # 5. stop
 api POST /api/v1/servers/$SERVER_NAME/stop "$TOKEN"
@@ -204,13 +232,15 @@ echo ">> server stopped"
 # 6. start
 api POST /api/v1/servers/$SERVER_NAME/start "$TOKEN"
 assert_code "$CODE" 200 "start server"
-wait_for 180 --arg n "$SERVER_NAME" '.[$n].status == "running"'
+wait_for "$RUNNING_TIMEOUT" --arg n "$SERVER_NAME" '.[$n].status == "running"'
 PORT_AFTER=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].node_port')
-echo ">> server started (node_port $PORT_AFTER)"
+QUERY_AFTER=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].query_port')
+echo ">> server started (node_port $PORT_AFTER, query_port $QUERY_AFTER)"
 
-# 7. node port preserved through stop/start
+# 7. node port + query port preserved through stop/start
 assert_eq "node_port preserved through stop/start" "$PORT_BEFORE" "$PORT_AFTER"
-echo ">> node_port preserved through stop/start"
+assert_eq "query_port preserved through stop/start" "$QUERY_BEFORE" "$QUERY_AFTER"
+echo ">> node_port and query_port preserved through stop/start"
 
 # 7.5 update server config (mutable fields only - port 2456 + world Dedicated frozen)
 OLD_HASH=$(kubectl -n "$NS" get deployment "$SERVER_NAME" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
@@ -257,4 +287,5 @@ assert_code "$CODE" 200 "purge storage"
 wait_kubectl_gone pvc "$SERVER_NAME-pvc" 60
 echo ">> orphaned PVC purged"
 
+SMOKE_OK=1
 echo ">> smoke test PASSED"
