@@ -9,6 +9,7 @@ fi
 
 : "${OFAN_ROOT_USER:?set OFAN_ROOT_USER (.env, or the ofan-app Secret on k3s)}"
 : "${OFAN_ROOT_PASS:?set OFAN_ROOT_PASS to the current root password}"
+OFAN_BOOTSTRAP_PASS="${OFAN_BOOTSTRAP_PASS:-$OFAN_ROOT_PASS}"
 
 if [[ "${SMOKE_CONFIRM_WIPE:-}" != 1 ]]; then
   echo "FAIL: smoke.sh resets the database (wipes ALL users and servers). Set SMOKE_CONFIRM_WIPE=1 to run it on a test install." >&2
@@ -114,9 +115,10 @@ preflight_cluster() { # fail fast when the node IP went stale (e.g. DHCP change 
   echo ">> preflight: node IP matches host, present in kubernetes endpoints"
 }
 
-root_login() {  local body code resp token
+root_login() { # $1 = root password to log in with; sets the same as the new password when must_change_password is set
+  local pass=$1 body code resp token
 
-  body=$(jq -n --arg u "$OFAN_ROOT_USER" --arg p "$OFAN_ROOT_PASS" '{username:$u, password:$p}')
+  body=$(jq -n --arg u "$OFAN_ROOT_USER" --arg p "$pass" '{username:$u, password:$p}')
   code=$(curl -s -o "$RESP" -w '%{http_code}' \
     -X POST "$BASE_URL/api/v1/auth/login" -H 'Content-Type: application/json' -d "$body")
   assert_code "$code" 200 "login"
@@ -125,14 +127,14 @@ root_login() {  local body code resp token
 
   if [[ "$(echo "$resp" | jq -r .must_change_password)" == "true" ]]; then
     echo ">> must_change_password set -- clearing it" >&2
-    body=$(jq -n --arg p "$OFAN_ROOT_PASS" '{new_password:$p}')
+    body=$(jq -n --arg p "$pass" '{new_password:$p}')
     code=$(curl -s -o /dev/null -w '%{http_code}' \
       -X POST "$BASE_URL/api/v1/auth/password" \
       -H 'Content-Type: application/json' \
       -H "Authorization: Bearer $token" -d "$body")
     assert_code "$code" 200 "change password"
 
-    body=$(jq -n --arg u "$OFAN_ROOT_USER" --arg p "$OFAN_ROOT_PASS" '{username:$u, password:$p}')
+    body=$(jq -n --arg u "$OFAN_ROOT_USER" --arg p "$pass" '{username:$u, password:$p}')
     code=$(curl -s -o "$RESP" -w '%{http_code}' \
       -X POST "$BASE_URL/api/v1/auth/login" \
       -H 'Content-Type: application/json' -d "$body")
@@ -196,14 +198,14 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/healthz")
 assert_code "$code" 200 "healthz"
 echo ">> health check successful"
 
-# 2. reset for clean slate
-TOKEN=$(root_login)
+# 2. reset for clean slate (login with current password; reset re-bootstraps root to the server's OFAN_ROOT_PASS)
+TOKEN=$(root_login "$OFAN_ROOT_PASS")
 code=$(curl -s -o /dev/null -w '%{http_code}' \
   -X POST "$BASE_URL/api/v1/system/reset" \
   -H "Authorization: Bearer $TOKEN")
 assert_code "$code" 200 "reset database"
 
-TOKEN=$(root_login)
+TOKEN=$(root_login "$OFAN_BOOTSTRAP_PASS")
 echo ">> fresh DB, token ready"
 
 # 3. create server
