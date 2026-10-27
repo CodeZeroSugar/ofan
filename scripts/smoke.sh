@@ -198,8 +198,9 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/healthz")
 assert_code "$code" 200 "healthz"
 echo ">> health check successful"
 
-# 2. reset for clean slate (login with current password; reset re-bootstraps root to the server's OFAN_ROOT_PASS)
-TOKEN=$(root_login "$OFAN_ROOT_PASS")
+# 2. reset for clean slate. Current root password is OFAN_ROOT_PASS, or OFAN_BOOTSTRAP_PASS
+# after a previous run has reset it. Reset re-bootstraps root to the server's OFAN_ROOT_PASS.
+TOKEN=$(root_login "$OFAN_ROOT_PASS" 2>/dev/null) || TOKEN=$(root_login "$OFAN_BOOTSTRAP_PASS")
 code=$(curl -s -o /dev/null -w '%{http_code}' \
   -X POST "$BASE_URL/api/v1/system/reset" \
   -H "Authorization: Bearer $TOKEN")
@@ -214,7 +215,7 @@ BODY=$(jq -n --arg n "$SERVER_NAME" --arg p "secret123" '{name:$n, password:$p}'
 api POST /api/v1/servers/create "$TOKEN" "$BODY"
 assert_code "$CODE" 202 "create server"
 CREATED_NAME="$SERVER_NAME"
-assert_jq "$BODY" '.status == "provisioning"'
+assert_jq "$BODY" --arg n "$SERVER_NAME" '.message | contains($n)'
 echo ">> server '$SERVER_NAME' created (provisioning)"
 
 # 4. poll until running (ready pod; first run pulls the multi-GB image), capture ports
