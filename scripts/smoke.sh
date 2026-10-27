@@ -282,12 +282,13 @@ if ! kubectl_exists pvc "$SERVER_NAME-pvc"; then
   echo "FAIL: PVC was not preserved" >&2; exit 1
 fi
 echo ">> deployment gone, PVC preserved"
+CREATED_NAME=""
 
-# 10. purge orphaned PVC
+# 10. purge orphaned PVC (waits out the pod's 120s termination grace before the PVC releases)
 BODY='{"confirm": true}'
 api POST /api/v1/system/purge-storage/$SERVER_NAME "$TOKEN" "$BODY"
 assert_code "$CODE" 200 "purge storage"
-wait_kubectl_gone pvc "$SERVER_NAME-pvc" 60
+wait_kubectl_gone pvc "$SERVER_NAME-pvc" 180
 echo ">> orphaned PVC purged"
 
 SMOKE_OK=1
