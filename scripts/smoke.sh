@@ -1,19 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for tool in jq curl kubectl; do
+  command -v "$tool" >/dev/null || {
+    echo "FAIL: '$tool' not found. On Ubuntu: sudo apt install -y jq curl (kubectl comes with k3s)." >&2
+    exit 1
+  }
+done
+
 if [[ -f .env ]]; then
   while IFS='=' read -r key val; do
     [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$val"
   done < .env
 fi
 
-: "${OFAN_ROOT_USER:?set OFAN_ROOT_USER (.env, or the ofan-app Secret on k3s)}"
-: "${OFAN_ROOT_PASS:?set OFAN_ROOT_PASS to the current root password}"
-OFAN_BOOTSTRAP_PASS="${OFAN_BOOTSTRAP_PASS:-$OFAN_ROOT_PASS}"
+if [[ -z "${KUBECONFIG:-}" && -r "$HOME/.kube/config" ]]; then
+  export KUBECONFIG="$HOME/.kube/config"
+fi
 
-if [[ "${SMOKE_CONFIRM_WIPE:-}" != 1 ]]; then
-  echo "FAIL: smoke.sh resets the database (wipes ALL users and servers). Set SMOKE_CONFIRM_WIPE=1 to run it on a test install." >&2
+cat >&2 <<'WARN'
+This smoke test RESETS Ofan: every user and server is deleted, and the
+root password goes back to the one the installer printed. Run it only on a
+test install.
+WARN
+read -rp "Type 'wipe' to continue: " CONFIRM
+if [[ "$CONFIRM" != wipe ]]; then
+  echo "Aborted." >&2
   exit 1
+fi
+
+OFAN_ROOT_USER="${OFAN_ROOT_USER:-ofan-root}"
+if [[ -z "${OFAN_ROOT_PASS:-}" ]]; then
+  read -rsp "Current dashboard password for $OFAN_ROOT_USER: " OFAN_ROOT_PASS
+  echo
+fi
+if [[ -z "${OFAN_BOOTSTRAP_PASS:-}" ]]; then
+  OFAN_BOOTSTRAP_PASS=$(kubectl -n ofan get secret ofan-app -o 'jsonpath={.data.OFAN_ROOT_PASS}' 2>/dev/null | base64 -d 2>/dev/null) || true
+  OFAN_BOOTSTRAP_PASS="${OFAN_BOOTSTRAP_PASS:-$OFAN_ROOT_PASS}"
 fi
 
 BASE_URL=${BASE_URL:-http://localhost:${PORT:-30080}}
@@ -192,6 +215,12 @@ fi
 # 0. cluster preflight (read-only; fail before mutating anything)
 preflight_cluster || exit 1
 echo ">> target $BASE_URL, namespace $NS"
+
+leftover=$(kubectl -n "$NS" get pvc -o name 2>/dev/null | grep '^persistentvolumeclaim/smoke-' || true)
+if [[ -n "$leftover" ]]; then
+  echo ">> note: PVCs left by earlier failed runs (delete any you don't need):" >&2
+  echo "$leftover" | sed "s|^persistentvolumeclaim/|   kubectl -n $NS delete pvc |" >&2
+fi
 
 # 1. healthz
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/healthz")

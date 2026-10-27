@@ -127,6 +127,29 @@ To join from Valheim, choose **Join Game**, then **Join IP**, and enter the addr
 
 - **Prevent address changes** by giving the server a fixed address in your router. Look in your router's manual for "DHCP reservation," "static lease," or "address reservation." Set it for this computer's MAC address.
 
+### Step 8: Run the self-test (optional)
+
+Ofan includes a self-test that creates a server, stops and starts it, changes its settings, deletes it, and removes its storage. It takes about 10 minutes, most of it the first Valheim download. Run it after installing to confirm everything works.
+
+**The self-test resets Ofan.** Every user and server is deleted, and the root password goes back to the one the installer printed. Run it only on a test install, never on one with servers you care about.
+
+Set up the tools and kubectl access once:
+
+```bash
+sudo apt install -y jq
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER ~/.kube/config
+```
+
+From the `ofan` folder, run:
+
+```bash
+bash scripts/smoke.sh
+```
+
+The test asks you to type `wipe` to confirm. It then asks for your current dashboard password, which may differ from the installer's if you changed it. When it finishes, it prints `smoke test PASSED`. If a step fails, it prints the failing check and the state of the cluster at that point. Keep that output if you report a problem.
+
 ### Troubleshooting
 
 | What you see                                   | What to do                                                                                                                                                                               |
