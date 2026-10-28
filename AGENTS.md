@@ -170,7 +170,7 @@ reference the rule numbers in Locked domain rules.
 
 ## Commands
 
-No Makefile or CI exists. Plain Go commands:
+No Makefile exists. CI (`.github/workflows/ci.yml`) runs `go test -race -count=1 -cover ./...`, a gofmt check, and staticcheck on pushes and PRs to `main`. Plain Go commands:
 
 - `go test ./...` — primary verification. Agent-safe to run (tests use in-memory
   sqlite; non-destructive). Add `-race -count=1` for a full run.
@@ -193,7 +193,9 @@ runs those.
 
 - `scripts/smoke.sh` — end-to-end smoke test (auth/reset → server lifecycle →
   delete/purge) against a live k3s. User-run only: needs the server running and
-  mutates the DB + cluster. Agents never run it.
+  mutates the DB + cluster and resets Ofan, so it asks for a typed `wipe`
+  confirmation. Needs `jq`, `curl`, `kubectl`, and a readable kubeconfig. Agents
+  never run it.
 
 Agents never commit, amend, push, or create PRs. All VCS operations are the
 user's to perform.
@@ -262,7 +264,7 @@ user's to perform.
   - D3 Manifests ✅ — `infra/` split into manager namespace `ofan` and game namespace `ofan-games`; RBAC scoped per namespace; NodePort 30080 UI.
   - D4 `setup.sh` installer (repo root) ✅ — secrets, apply order, rollout wait, URL and root password on fresh install.
   - D5 Install guide ✅ drafted in README "Getting started" (Ubuntu Server + k3s, targeted at non-technical users).
-  - D6 fresh-environment proof (guide top to bottom on a clean VM + `smoke.sh` green) — next. D7 DHCP-proof home deployments (see Roadmap in TODO.md).
+  - D6 fresh-environment proof ✅ 2026-10-27 (install guide followed cold on a clean Ubuntu Server 26.04 VM; `smoke.sh` green, including the refactored self-test with typed `wipe` and prompts; manual dashboard testing green). Next: D7 DHCP-proof home deployments (see Roadmap in TODO.md).
 
 ## Backlog
 

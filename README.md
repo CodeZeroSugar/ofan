@@ -4,7 +4,7 @@
 
 Ofan is a self-hosted manager for Valheim dedicated servers. You describe the servers you want in a web dashboard, and Ofan creates, runs, repairs, and removes them on a Kubernetes cluster.
 
-**Status:** In active development. The install guide is written but has not yet been tested on a fresh machine. Expected MVP before the end of 2026.
+**Status:** In active development. The install guide has been tested end to end on a fresh Ubuntu Server VM. Expected MVP before the end of 2026.
 
 ## Why Ofan
 
@@ -263,7 +263,7 @@ These choices shape how Ofan behaves. They are kept deliberately simple so the s
 
 ## Roadmap
 
-- **Deployment:** container image, Kubernetes manifests, and installer script (done). Install guide written; fresh-machine test pending.
+- **Deployment:** container image, Kubernetes manifests, and installer script (done). Install guide tested on a fresh machine (2026-10-27).
 - **Graceful drain:** optionally scale servers down cleanly when Ofan itself shuts down. Pod shutdown timing is already set to give worlds time to save.
 - **Later:** live player counts and metrics, Discord or webhook notifications, readiness reporting
 
