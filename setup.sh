@@ -58,7 +58,8 @@ NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="
 echo "Open: http://${NODE_IP}:30080"
 
 if [[ "$FRESH_INSTALL" = "yes" ]]; then
-  kubectl -n ofan get secret ofan-app -o jsonpath='{.data.OFAN_ROOT_PASS}' | base64 -d; echo
+  ROOT_PASS=$(kubectl -n ofan get secret ofan-app -o jsonpath='{.data.OFAN_ROOT_PASS}' | base64 -d; echo)
+  echo "First Login Password: ${ROOT_PASS}"
 else
   echo "existing password is unchanged, can be changed in web dashboard"
 fi
