@@ -7,6 +7,30 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  namespace: default
+  name: ofan-endpointslice-reader
+rules:
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ofan-read-endpointslice
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: ofan
+    namespace: ofan
+roleRef:
+  kind: Role
+  name: ofan-endpointslice-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
   namespace: ofan-games
   name: ofan-manager
 rules:
@@ -61,3 +85,25 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: ofan-namespace-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ofan-node-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ofan-node-reader-binding
+subjects:
+  - kind: ServiceAccount
+    name: ofan
+    namespace: ofan
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ofan-node-reader
