@@ -5,17 +5,27 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/listers/core/v1"
+	discoveryv1 "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 type InformerManager struct {
-	Registry *ServerRegistry
+	Registry           *ServerRegistry
+	NodeLister         v1.NodeLister
+	NodeInformer       cache.SharedIndexInformer
+	nodeWatchError     error
+	EndpointLister     discoveryv1.EndpointSliceLister
+	EndpointInformer   cache.SharedIndexInformer
+	endpointWatchError error
+	mu                 sync.Mutex
 }
 
 func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx context.Context) (*InformerManager, error) {
@@ -87,6 +97,64 @@ func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx 
 	log.Println("informer synced, watching for events...")
 
 	return mgr, nil
+}
+
+func (m *InformerManager) StartNodeAndEndpointInformer(clientset kubernetes.Interface, ctx context.Context) error {
+	clusterFactory := informers.NewSharedInformerFactory(clientset, 10*time.Minute)
+	endpointFactory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Minute, informers.WithNamespace("default"))
+
+	err := clusterFactory.Core().V1().Nodes().Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
+		m.mu.Lock()
+		log.Printf("error occurred on %s: %v", r.TypeDescription(), err)
+		m.nodeWatchError = err
+		m.mu.Unlock()
+	})
+	if err != nil {
+		return err
+	}
+
+	err = endpointFactory.Discovery().V1().EndpointSlices().Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
+		m.mu.Lock()
+		log.Printf("error occurred on %s: %v", r.TypeDescription(), err)
+		m.endpointWatchError = err
+		m.mu.Unlock()
+	})
+	if err != nil {
+		return err
+	}
+
+	m.NodeLister = clusterFactory.Core().V1().Nodes().Lister()
+	m.NodeInformer = clusterFactory.Core().V1().Nodes().Informer()
+
+	m.EndpointLister = endpointFactory.Discovery().V1().EndpointSlices().Lister()
+	m.EndpointInformer = endpointFactory.Discovery().V1().EndpointSlices().Informer()
+
+	clusterFactory.Start(ctx.Done())
+	endpointFactory.Start(ctx.Done())
+
+	go func() {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		syncRes := clusterFactory.WaitForCacheSyncWithContext(ctx)
+		if syncRes.AsError() != nil {
+			log.Printf("cluster factory failed to sync: %v", syncRes.AsError())
+		} else {
+			log.Println("cluster factory synced")
+		}
+	}()
+
+	go func() {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		syncRes := endpointFactory.WaitForCacheSyncWithContext(ctx)
+		if syncRes.AsError() != nil {
+			log.Printf("endpoint factory failed to sync: %v", syncRes.AsError())
+		} else {
+			log.Println("endpoint factory synced")
+		}
+	}()
+
+	return nil
 }
 
 func (m *InformerManager) upsertDeployment(obj *appsv1.Deployment) {

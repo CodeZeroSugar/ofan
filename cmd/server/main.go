@@ -49,6 +49,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to start informers: %v", err)
 	}
+	err = informerMgr.StartNodeAndEndpointInformer(clientset, ctx)
+	if err != nil {
+		log.Printf("failed to start Node and Endpoint informers: %v", err)
+	}
 
 	ctrl := controller.NewController(store, clientset, informerMgr.Registry, cfg.DefaultNamespace)
 	go ctrl.Run(ctx)
