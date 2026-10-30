@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/listers/core/v1"
@@ -26,6 +28,15 @@ type InformerManager struct {
 	EndpointInformer   cache.SharedIndexInformer
 	endpointWatchError error
 	mu                 sync.Mutex
+}
+
+type NetworkHealthResult struct {
+	State              string
+	NodeIPs            []string
+	NodeWatchError     error
+	EndpointIPs        []string
+	EndpointWatchError error
+	TimeChecked        time.Time
 }
 
 func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx context.Context) (*InformerManager, error) {
@@ -155,6 +166,81 @@ func (m *InformerManager) StartNodeAndEndpointInformer(clientset kubernetes.Inte
 	}()
 
 	return nil
+}
+
+func (m *InformerManager) getWatchErrors() map[string]error {
+	m.mu.Lock()
+	watchErrors := make(map[string]error)
+	watchErrors["node"] = m.nodeWatchError
+	watchErrors["endpoint"] = m.endpointWatchError
+	m.mu.Unlock()
+	return watchErrors
+}
+
+func (m *InformerManager) NetworkHealth() (*NetworkHealthResult, error) {
+	var health NetworkHealthResult
+	health.TimeChecked = time.Now()
+
+	watchErrors := m.getWatchErrors()
+
+	if m.NodeInformer == nil || m.NodeLister == nil || !m.NodeInformer.HasSynced() {
+		health.State = "unknown"
+		health.NodeWatchError = watchErrors["node"]
+	}
+	if m.EndpointInformer == nil || m.EndpointLister == nil || !m.EndpointInformer.HasSynced() {
+		health.State = "unknown"
+		health.EndpointWatchError = watchErrors["endpoint"]
+	}
+
+	if health.State == "unknown" {
+		return &health, nil
+	}
+
+	nodes, err := m.NodeLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	addrs := make([]corev1.NodeAddress, 0)
+	for _, node := range nodes {
+		addrs = append(addrs, node.Status.Addresses...)
+	}
+	for _, addr := range addrs {
+		if addr.Type == corev1.NodeInternalIP {
+			health.NodeIPs = append(health.NodeIPs, addr.Address)
+		}
+	}
+	if len(health.NodeIPs) == 0 {
+		health.State = "unknown"
+		return &health, nil
+	}
+
+	selector, err := labels.Parse("kubernetes.io/service-name=kubernetes")
+	if err != nil {
+		return nil, err
+	}
+	endpoints, err := m.EndpointLister.List(selector)
+	if err != nil {
+		return nil, err
+	}
+	for _, endpoint := range endpoints {
+		for _, e := range endpoint.Endpoints {
+			health.EndpointIPs = append(health.EndpointIPs, e.Addresses...)
+		}
+	}
+
+	health.State = "drift"
+
+	for _, ip := range health.NodeIPs {
+		if slices.Contains(health.EndpointIPs, ip) {
+			health.State = "ok"
+			break
+		}
+	}
+
+	health.NodeWatchError = watchErrors["node"]
+	health.EndpointWatchError = watchErrors["endpoint"]
+
+	return &health, nil
 }
 
 func (m *InformerManager) upsertDeployment(obj *appsv1.Deployment) {
