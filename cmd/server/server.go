@@ -70,6 +70,7 @@ func newServer(port string, apiCfg *api.ApiConfig, cfg *Config, cancel context.C
 	rootMux.HandleFunc("POST /api/v1/system/reset", s.handlerResetDatabase)
 	rootMux.HandleFunc("POST /api/v1/system/purge-storage/{server_name}", s.apiCfg.HandlerDeletePVC)
 	rootMux.HandleFunc("GET /api/v1/system/orphaned-storage", s.apiCfg.HandlerListOrphanedStorage)
+	rootMux.HandleFunc("GET /api/v1/system/network", s.apiCfg.HandlerNetworkHealth)
 	apiMux.Handle("/api/v1/system/", auth.RequireRoot(rootMux))
 
 	// Admin role protected
