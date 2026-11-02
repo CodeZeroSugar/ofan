@@ -182,6 +182,8 @@ func (m *InformerManager) NetworkHealth() (*NetworkHealthResult, error) {
 	health.TimeChecked = time.Now()
 
 	watchErrors := m.getWatchErrors()
+	health.NodeWatchError = watchErrors["node"]
+	health.EndpointWatchError = watchErrors["endpoint"]
 
 	if m.NodeInformer == nil || m.NodeLister == nil || !m.NodeInformer.HasSynced() {
 		health.State = "unknown"
@@ -236,9 +238,6 @@ func (m *InformerManager) NetworkHealth() (*NetworkHealthResult, error) {
 			break
 		}
 	}
-
-	health.NodeWatchError = watchErrors["node"]
-	health.EndpointWatchError = watchErrors["endpoint"]
 
 	return &health, nil
 }

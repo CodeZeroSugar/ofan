@@ -1,6 +1,8 @@
 package k8s
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -567,4 +570,50 @@ func TestDeleteService(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNodeInformerNotSynced(t *testing.T) {
+	m := &InformerManager{nodeWatchError: errors.New("forbidden")}
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "unknown", health.State)
+	assert.Equal(t, health.NodeWatchError.Error(), "forbidden")
+}
+
+func TestEndpointInformerNotSynced(t *testing.T) {
+	m := &InformerManager{endpointWatchError: errors.New("forbidden")}
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "unknown", health.State)
+	assert.Equal(t, health.EndpointWatchError.Error(), "forbidden")
+}
+
+func TestNilNodeLister(t *testing.T) {
+	m := &InformerManager{}
+	client := fake.NewSimpleClientset()
+	ctx := context.Background()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	m.NodeLister = nil
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "unknown", health.State)
 }
