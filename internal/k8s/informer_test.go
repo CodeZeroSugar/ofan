@@ -2,7 +2,6 @@ package k8s
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -574,23 +573,23 @@ func TestDeleteService(t *testing.T) {
 }
 
 func TestNodeInformerNotSynced(t *testing.T) {
-	m := &InformerManager{nodeWatchError: errors.New("forbidden")}
+	m := &InformerManager{nodeWatchError: "forbidden"}
 
 	health, err := m.NetworkHealth()
 	require.NoError(t, err)
 
 	assert.Equal(t, "unknown", health.State)
-	assert.Equal(t, health.NodeWatchError.Error(), "forbidden")
+	assert.Equal(t, health.NodeWatchError, "forbidden")
 }
 
 func TestEndpointInformerNotSynced(t *testing.T) {
-	m := &InformerManager{endpointWatchError: errors.New("forbidden")}
+	m := &InformerManager{endpointWatchError: "forbidden"}
 
 	health, err := m.NetworkHealth()
 	require.NoError(t, err)
 
 	assert.Equal(t, "unknown", health.State)
-	assert.Equal(t, health.EndpointWatchError.Error(), "forbidden")
+	assert.Equal(t, health.EndpointWatchError, "forbidden")
 }
 
 func TestNilNodeLister(t *testing.T) {
@@ -777,12 +776,12 @@ func TestWatchErrorSynced(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
-	m.nodeWatchError = errors.New("forbidden")
+	m.nodeWatchError = "forbidden"
 
 	health, err := m.NetworkHealth()
 	require.NoError(t, err)
 
 	assert.Equal(t, "drift", health.State)
-	assert.Equal(t, health.NodeWatchError.Error(), "forbidden")
+	assert.Equal(t, health.NodeWatchError, "forbidden")
 	assert.Equal(t, []string{"192.168.20.69"}, health.NodeIPs)
 }

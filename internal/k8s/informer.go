@@ -23,20 +23,20 @@ type InformerManager struct {
 	Registry           *ServerRegistry
 	NodeLister         v1.NodeLister
 	NodeInformer       cache.SharedIndexInformer
-	nodeWatchError     error
+	nodeWatchError     string
 	EndpointLister     discoveryv1.EndpointSliceLister
 	EndpointInformer   cache.SharedIndexInformer
-	endpointWatchError error
+	endpointWatchError string
 	mu                 sync.Mutex
 }
 
 type NetworkHealthResult struct {
-	State              string
-	NodeIPs            []string
-	NodeWatchError     error
-	EndpointIPs        []string
-	EndpointWatchError error
-	TimeChecked        time.Time
+	State              string    `json:"state"`
+	NodeIPs            []string  `json:"node_ips"`
+	NodeWatchError     string    `json:"node_watch_error"`
+	EndpointIPs        []string  `json:"endpoint_ips"`
+	EndpointWatchError string    `json:"endpoint_watch_error"`
+	TimeChecked        time.Time `json:"time_checked"`
 }
 
 func StartInformerManager(clientset kubernetes.Interface, namespace string, ctx context.Context) (*InformerManager, error) {
@@ -117,7 +117,7 @@ func (m *InformerManager) StartNodeAndEndpointInformer(clientset kubernetes.Inte
 	err := clusterFactory.Core().V1().Nodes().Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		m.mu.Lock()
 		log.Printf("error occurred on %s: %v", r.TypeDescription(), err)
-		m.nodeWatchError = err
+		m.nodeWatchError = err.Error()
 		m.mu.Unlock()
 	})
 	if err != nil {
@@ -127,7 +127,7 @@ func (m *InformerManager) StartNodeAndEndpointInformer(clientset kubernetes.Inte
 	err = endpointFactory.Discovery().V1().EndpointSlices().Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		m.mu.Lock()
 		log.Printf("error occurred on %s: %v", r.TypeDescription(), err)
-		m.endpointWatchError = err
+		m.endpointWatchError = err.Error()
 		m.mu.Unlock()
 	})
 	if err != nil {
@@ -168,9 +168,9 @@ func (m *InformerManager) StartNodeAndEndpointInformer(clientset kubernetes.Inte
 	return nil
 }
 
-func (m *InformerManager) getWatchErrors() map[string]error {
+func (m *InformerManager) getWatchErrors() map[string]string {
 	m.mu.Lock()
-	watchErrors := make(map[string]error)
+	watchErrors := make(map[string]string)
 	watchErrors["node"] = m.nodeWatchError
 	watchErrors["endpoint"] = m.endpointWatchError
 	m.mu.Unlock()
