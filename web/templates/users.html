@@ -20,6 +20,7 @@
           <nav class="mb-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
             <a href="#users" class="text-zinc-400 transition-colors hover:text-neutral-50">User management</a>
             <a href="#storage" class="text-zinc-400 transition-colors hover:text-neutral-50">Storage</a>
+            <a href="#network" class="text-zinc-400 transition-colors hover:text-neutral-50">Network</a>
             <a href="#danger" class="text-red-400 transition-colors hover:text-red-300">Danger zone</a>
           </nav>
           <h3 id="users" class="section-title scroll-mt-6">User Management</h3>
@@ -137,6 +138,27 @@
                 class="text-center text-sm font-medium"
               ></div>
             </form>
+          </div>
+          <h3 id="network" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title">Network Management</h3>
+          <div class="card p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 class="mb-1 text-base font-semibold">Cluster Network Health</h4>
+                <p class="text-sm text-zinc-400">
+                  Compares node InternalIPs against the <code class="font-mono text-zinc-300">kubernetes</code> EndpointSlice. Root only.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="refresh-network"
+                class="btn-secondary btn-sm"
+              >
+                Refresh
+              </button>
+            </div>
+            <div id="network-health" class="mt-4 flex flex-col gap-3 text-sm text-zinc-400">
+              Loading network health...
+            </div>
           </div>
           <h3 id="danger" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title text-red-400">Danger Zone</h3>
           <div class="card border-red-900 p-5">
@@ -538,8 +560,119 @@
           });
       });
 
+      function networkBadge(state) {
+        if (state === "ok") {
+          return '<span class="badge bg-emerald-900 text-emerald-200">healthy</span>';
+        }
+        if (state === "drift") {
+          return '<span class="badge bg-red-900 text-red-200">drift detected</span>';
+        }
+        return '<span class="badge bg-amber-900 text-amber-100">unknown</span>';
+      }
+
+      function formatIpPills(ips) {
+        if (!ips || !ips.length) {
+          return '<span class="text-zinc-500">none</span>';
+        }
+        return ips
+          .map(function (ip) {
+            return (
+              '<span class=" rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 font-mono text-xs text-neutral-50">' +
+              escapeHtml(ip) +
+              "</span>"
+            );
+          })
+          .join(" ");
+      }
+
+      function renderNetworkHealth(h) {
+        var el = document.getElementById("network-health");
+        var html =
+          '<div class="flex flex-wrap items-center gap-3">' +
+          '<span class="font-medium text-zinc-300">Status:</span> ' +
+          networkBadge(h.state) +
+          (h.time_checked
+            ? '<span class="text-xs text-zinc-500">Checked ' +
+              escapeHtml(new Date(h.time_checked).toLocaleTimeString()) +
+              "</span>"
+            : "") +
+          "</div>";
+
+        if (h.state === "drift") {
+          html +=
+            '<div class="rounded-lg border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">' +
+            "Node InternalIP does not match any <code class=\"font-mono\">kubernetes</code> service endpoint. " +
+            "Pod-to-API traffic may be blackholed after a network or DHCP lease change. " +
+            'Run <code class="font-mono text-red-100">sudo systemctl restart k3s</code> on the host to recover.' +
+            "</div>";
+        } else if (h.state === "unknown") {
+          html +=
+            '<div class="rounded-lg border border-amber-800 bg-amber-950/50 p-3 text-sm text-amber-200">' +
+            "Informers have not synced or no node InternalIP was reported yet." +
+            "</div>";
+        }
+
+        html +=
+          '<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">' +
+          '<div class="rounded-lg border border-zinc-700 bg-zinc-900 p-3">' +
+          '<div class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">Node InternalIPs</div>' +
+          '<div class="flex flex-wrap gap-1.5">' +
+          formatIpPills(h.node_ips) +
+          "</div>" +
+          (h.node_watch_error
+            ? '<div class="mt-2 font-mono text-xs text-red-400">Watch error: ' +
+              escapeHtml(h.node_watch_error) +
+              "</div>"
+            : "") +
+          "</div>" +
+          '<div class="rounded-lg border border-zinc-700 bg-zinc-900 p-3">' +
+          '<div class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-400">Kubernetes EndpointIPs</div>' +
+          '<div class="flex flex-wrap gap-1.5">' +
+          formatIpPills(h.endpoint_ips) +
+          "</div>" +
+          (h.endpoint_watch_error
+            ? '<div class="mt-2 font-mono text-xs text-red-400">Watch error: ' +
+              escapeHtml(h.endpoint_watch_error) +
+              "</div>"
+            : "") +
+          "</div>" +
+          "</div>";
+
+        el.innerHTML = html;
+      }
+
+      function loadNetworkHealth() {
+        var btn = document.getElementById("refresh-network");
+        var el = document.getElementById("network-health");
+        ofan.busy(btn, true);
+        fetch("/api/v1/system/network", { headers: { Accept: "application/json" } })
+          .then(function (resp) {
+            ofan.busy(btn, false);
+            if (resp.status === 403) {
+              btn.classList.add("hidden");
+              el.innerHTML = '<div class="text-sm text-zinc-400">Root only.</div>';
+              return null;
+            }
+            if (!resp.ok) throw new Error("failed to load network health");
+            return resp.json();
+          })
+          .then(function (data) {
+            if (data) renderNetworkHealth(data);
+          })
+          .catch(function (err) {
+            ofan.busy(btn, false);
+            el.innerHTML =
+              '<div class="text-sm font-medium text-red-500">' +
+              escapeHtml(err.message || "Could not reach the server.") +
+              "</div>";
+          });
+      }
+
+      document.getElementById("refresh-network").addEventListener("click", loadNetworkHealth);
+
       loadUsers();
       loadOrphans();
+      loadNetworkHealth();
     </script>
   </body>
 </html>
