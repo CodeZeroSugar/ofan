@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -574,11 +575,6 @@ func TestDeleteService(t *testing.T) {
 
 func TestNodeInformerNotSynced(t *testing.T) {
 	m := &InformerManager{nodeWatchError: errors.New("forbidden")}
-	client := fake.NewSimpleClientset()
-	ctx := context.Background()
-
-	err := m.StartNodeAndEndpointInformer(client, ctx)
-	require.NoError(t, err)
 
 	health, err := m.NetworkHealth()
 	require.NoError(t, err)
@@ -589,11 +585,6 @@ func TestNodeInformerNotSynced(t *testing.T) {
 
 func TestEndpointInformerNotSynced(t *testing.T) {
 	m := &InformerManager{endpointWatchError: errors.New("forbidden")}
-	client := fake.NewSimpleClientset()
-	ctx := context.Background()
-
-	err := m.StartNodeAndEndpointInformer(client, ctx)
-	require.NoError(t, err)
 
 	health, err := m.NetworkHealth()
 	require.NoError(t, err)
@@ -605,7 +596,8 @@ func TestEndpointInformerNotSynced(t *testing.T) {
 func TestNilNodeLister(t *testing.T) {
 	m := &InformerManager{}
 	client := fake.NewSimpleClientset()
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	err := m.StartNodeAndEndpointInformer(client, ctx)
 	require.NoError(t, err)
@@ -616,4 +608,181 @@ func TestNilNodeLister(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "unknown", health.State)
+}
+
+func TestNoNodes(t *testing.T) {
+	m := &InformerManager{}
+	client := fake.NewSimpleClientset()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "unknown", health.State)
+}
+
+func TestNodesWithoutInternalIP(t *testing.T) {
+	m := &InformerManager{}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}}}}
+	client := fake.NewSimpleClientset(node)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "unknown", health.State)
+}
+
+func TestNodesMatchingIP(t *testing.T) {
+	m := &InformerManager{}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.69"}}}}
+	slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default", Labels: map[string]string{"kubernetes.io/service-name": "kubernetes"}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node, slice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "ok", health.State)
+
+	assert.Equal(t, []string{"192.168.20.69"}, health.NodeIPs)
+	assert.Equal(t, []string{"192.168.20.69"}, health.EndpointIPs)
+}
+
+func TestNodesStaleIP(t *testing.T) {
+	m := &InformerManager{}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.72"}}}}
+	slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default", Labels: map[string]string{"kubernetes.io/service-name": "kubernetes"}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node, slice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "drift", health.State)
+
+	assert.Equal(t, []string{"192.168.20.72"}, health.NodeIPs)
+	assert.Equal(t, []string{"192.168.20.69"}, health.EndpointIPs)
+}
+
+func TestNodesMultiple(t *testing.T) {
+	m := &InformerManager{}
+
+	node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.69"}}}}
+	node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.75"}}}}
+	slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default", Labels: map[string]string{"kubernetes.io/service-name": "kubernetes"}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node1, node2, slice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "ok", health.State)
+
+	assert.ElementsMatch(t, []string{"192.168.20.69", "192.168.20.75"}, health.NodeIPs)
+	assert.Equal(t, []string{"192.168.20.69"}, health.EndpointIPs)
+}
+
+func TestNodesNoEndpoints(t *testing.T) {
+	m := &InformerManager{}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "drift", health.State)
+
+	assert.Equal(t, []string{"192.168.20.69"}, health.NodeIPs)
+}
+
+func TestNodesUnrelatedSlice(t *testing.T) {
+	m := &InformerManager{}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.69"}}}}
+	slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default", Labels: map[string]string{"kubernetes.io/service-name": "differentservice"}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node, slice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "drift", health.State)
+
+	assert.Equal(t, []string{"192.168.20.69"}, health.NodeIPs)
+}
+
+func TestWatchErrorSynced(t *testing.T) {
+	m := &InformerManager{}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "192.168.1.10"}, {Type: corev1.NodeHostName, Address: "ofan-hostname"}, {Type: corev1.NodeInternalIP, Address: "192.168.20.69"}}}}
+	slice := &discoveryv1.EndpointSlice{ObjectMeta: metav1.ObjectMeta{Name: "kubernetes", Namespace: "default", Labels: map[string]string{"kubernetes.io/service-name": "differentservice"}}, Endpoints: []discoveryv1.Endpoint{{Addresses: []string{"192.168.20.69"}}}}
+	client := fake.NewSimpleClientset(node, slice)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := m.StartNodeAndEndpointInformer(client, ctx)
+	require.NoError(t, err)
+
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), m.NodeInformer.HasSynced, m.EndpointInformer.HasSynced))
+	m.nodeWatchError = errors.New("forbidden")
+
+	health, err := m.NetworkHealth()
+	require.NoError(t, err)
+
+	assert.Equal(t, "drift", health.State)
+	assert.Equal(t, health.NodeWatchError.Error(), "forbidden")
+	assert.Equal(t, []string{"192.168.20.69"}, health.NodeIPs)
 }
