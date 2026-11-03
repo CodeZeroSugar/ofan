@@ -24,120 +24,126 @@
             <a href="#danger" class="text-red-400 transition-colors hover:text-red-300">Danger zone</a>
           </nav>
           <h3 id="users" class="section-title scroll-mt-6">User Management</h3>
-          <div
-            class="mb-4 w-full max-w-md card p-6"
-          >
-            <h3 class="section-title">Create User</h3>
-            <form id="create-user-form" class="flex flex-col gap-4">
-              <div>
-                <label
-                  for="new-username"
-                  class="label"
-                  >Username</label
-                >
-                <input
-                  class="field"
-                  type="text"
-                  id="new-username"
-                  name="username"
-                  required
-                />
-              </div>
-              <div>
-                <label
-                  for="new-password"
-                  class="label"
-                  >Password</label
-                >
-                <input
-                  class="field"
-                  type="password"
-                  id="new-password"
-                  name="password"
-                  required
-                />
-              </div>
-              <div>
-                <label class="flex items-center gap-2 text-sm text-zinc-300">
+          <div class="mb-4 card p-5">
+            <h4 class="mb-1 text-base font-semibold">Create User</h4>
+            <p class="mb-4 text-sm text-zinc-400">
+              Add an account for managing or playing on servers.
+            </p>
+            <form id="create-user-form" class="flex flex-col gap-3">
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
+                <div class="min-w-0">
+                  <label
+                    for="new-username"
+                    class="label"
+                    >Username</label
+                  >
+                  <input
+                    class="field"
+                    type="text"
+                    id="new-username"
+                    name="username"
+                    required
+                  />
+                </div>
+                <div class="min-w-0">
+                  <label
+                    for="new-password"
+                    class="label"
+                    >Password</label
+                  >
+                  <input
+                    class="field"
+                    type="password"
+                    id="new-password"
+                    name="password"
+                    required
+                  />
+                </div>
+                <label class="flex h-[38px] items-center gap-2 px-1 text-sm text-zinc-300 select-none">
                   <input type="checkbox" id="new-is-admin" name="is_admin" />
                   Admin
                 </label>
+                <button
+                  type="submit"
+                  class="btn-primary w-full px-6 md:w-auto"
+                >
+                  Create
+                </button>
               </div>
-              <button
-                type="submit"
-                class="btn-primary w-full"
-              >
-                Create
-              </button>
               <div
                 id="create-user-message"
-                class="text-center text-sm font-medium"
+                class="text-sm font-medium empty:hidden"
               ></div>
             </form>
           </div>
           <div
             id="users-status"
-            class="mb-4 text-center text-sm font-medium text-red-500"
+            class="mb-4 text-center text-sm font-medium text-red-500 empty:hidden"
           ></div>
           <div class="card p-5">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="text-base font-semibold">Accounts</h4>
+            </div>
             <table class="w-full text-left text-sm">
               <thead>
                 <tr class="text-zinc-400">
                   <th class="px-2 py-2 font-medium">Username</th>
                   <th class="px-2 py-2 font-medium">Role</th>
                   <th class="px-2 py-2 font-medium">Status</th>
-                  <th class="px-2 py-2 font-medium">Actions</th>
+                  <th class="px-2 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody id="users-body"></tbody>
             </table>
           </div>
           <h3 id="storage" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title">Storage Management</h3>
-          <div class="card p-5">
-            <h4 class="mb-1 text-base font-semibold">Orphaned Storage</h4>
-            <p class="mb-4 text-sm text-zinc-400">
-              Volumes with no server row. Root only.
-            </p>
-            <div id="orphan-list" class="flex flex-col gap-2"></div>
-          </div>
-          <div class="mt-4 w-full max-w-md card p-6">
-            <h4 class="mb-1 text-base font-semibold">Purge Orphaned Storage</h4>
-            <p class="mb-4 text-sm text-zinc-400">
-              Root only. Deletes the persistent volume of a server with no
-              database row. Enter the exact server name.
-            </p>
-            <form id="purge-storage-form" class="flex flex-col gap-4">
-              <div>
-                <label
-                  for="purge-name"
-                  class="label"
-                  >Server Name</label
+          <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+            <div class="card flex flex-col p-5">
+              <h4 class="mb-1 text-base font-semibold">Orphaned Storage</h4>
+              <p class="mb-4 text-sm text-zinc-400">
+                Volumes with no server row. Root only.
+              </p>
+              <div id="orphan-list" class="flex flex-col gap-2"></div>
+            </div>
+            <div class="card p-5">
+              <h4 class="mb-1 text-base font-semibold">Purge Orphaned Storage</h4>
+              <p class="mb-4 text-sm text-zinc-400">
+                Root only. Deletes the persistent volume of a server with no
+                database row. Enter the exact server name.
+              </p>
+              <form id="purge-storage-form" class="flex flex-col gap-4">
+                <div>
+                  <label
+                    for="purge-name"
+                    class="label"
+                    >Server Name</label
+                  >
+                  <input
+                    class="field"
+                    type="text"
+                    id="purge-name"
+                    name="server_name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label class="flex items-center gap-2 text-sm text-zinc-300">
+                    <input type="checkbox" id="purge-confirm" />
+                    I understand this permanently deletes stored data
+                  </label>
+                </div>
+                <button
+                  type="submit"
+                  class="btn-danger w-full sm:w-auto sm:self-start"
                 >
-                <input
-                  class="field"
-                  type="text"
-                  id="purge-name"
-                  name="server_name"
-                  required
-                />
-              </div>
-              <div>
-                <label class="flex items-center gap-2 text-sm text-zinc-300">
-                  <input type="checkbox" id="purge-confirm" />
-                  I understand this permanently deletes stored data
-                </label>
-              </div>
-              <button
-                type="submit"
-                class="btn-danger w-full"
-              >
-                Purge Storage
-              </button>
-              <div
-                id="purge-message"
-                class="text-center text-sm font-medium"
-              ></div>
-            </form>
+                  Purge Storage
+                </button>
+                <div
+                  id="purge-message"
+                  class="text-sm font-medium empty:hidden"
+                ></div>
+              </form>
+            </div>
           </div>
           <h3 id="network" class="mt-10 scroll-mt-6 border-t border-zinc-800 pt-6 section-title">Network Management</h3>
           <div class="card p-5">
@@ -191,7 +197,7 @@
                   following minutes; stored worlds are preserved.
                 </p>
               </div>
-              <div>
+              <div class="border-t border-zinc-800 pt-4">
                 <button
                   type="button"
                   id="shutdown-server"
@@ -376,7 +382,7 @@
             if (resp.status !== 201) {
               resp.text().then(function (text) {
                 msg.textContent = text;
-                msg.className = "text-center text-sm font-medium text-red-500";
+                msg.className = "text-sm font-medium text-red-500 empty:hidden";
               });
               return;
             }
@@ -388,7 +394,7 @@
           .catch(function () {
             ofan.busy(submit, false);
             msg.textContent = "Could not reach the server.";
-            msg.className = "text-center text-sm font-medium text-red-500";
+            msg.className = "text-sm font-medium text-red-500 empty:hidden";
           });
       });
 
@@ -473,7 +479,7 @@
         var name = document.getElementById("purge-name").value.trim();
         if (!document.getElementById("purge-confirm").checked) {
           msg.textContent = "confirm the checkbox first";
-          msg.className = "text-center text-sm font-medium text-red-500";
+          msg.className = "text-sm font-medium text-red-500 empty:hidden";
           return;
         }
         ofan.busy(submit, true);
@@ -490,7 +496,7 @@
             if (resp.status !== 200) {
               resp.text().then(function (text) {
                 msg.textContent = text;
-                msg.className = "text-center text-sm font-medium text-red-500";
+                msg.className = "text-sm font-medium text-red-500 empty:hidden";
               });
               return;
             }
@@ -502,7 +508,7 @@
           .catch(function () {
             ofan.busy(submit, false);
             msg.textContent = "Could not reach the server.";
-            msg.className = "text-center text-sm font-medium text-red-500";
+            msg.className = "text-sm font-medium text-red-500 empty:hidden";
           });
       });
 
