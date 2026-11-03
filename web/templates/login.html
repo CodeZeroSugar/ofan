@@ -80,6 +80,15 @@
           required
         />
       </div>
+      <div>
+        <label for="confirm-password" class="label">Confirm New Password</label>
+        <input
+          class="field"
+          type="password"
+          id="confirm-password"
+          required
+        />
+      </div>
       <button
         class="btn-primary w-full"
         type="submit"
@@ -92,6 +101,17 @@
       class="min-h-5 text-center text-sm font-medium text-red-500"
     ></div>
     <script>
+      document
+        .getElementById("change-password-form")
+        .addEventListener("htmx:confirm", function (event) {
+          var pw = document.getElementById("new-password").value;
+          var confirmPw = document.getElementById("confirm-password").value;
+          if (pw !== confirmPw) {
+            event.preventDefault();
+            document.getElementById("login-error").textContent =
+              "passwords do not match";
+          }
+        });
       document.body.addEventListener("htmx:afterRequest", function (event) {
         const reqElement = event.detail.elt;
         if (!reqElement) return;

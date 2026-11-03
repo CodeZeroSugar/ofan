@@ -30,7 +30,7 @@
               Add an account for managing or playing on servers.
             </p>
             <form id="create-user-form" class="flex flex-col gap-3">
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_1fr_auto_auto] md:items-end">
                 <div class="min-w-0">
                   <label
                     for="new-username"
@@ -56,6 +56,19 @@
                     type="password"
                     id="new-password"
                     name="password"
+                    required
+                  />
+                </div>
+                <div class="min-w-0">
+                  <label
+                    for="new-password-confirm"
+                    class="label"
+                    >Confirm Password</label
+                  >
+                  <input
+                    class="field"
+                    type="password"
+                    id="new-password-confirm"
                     required
                   />
                 </div>
@@ -364,6 +377,13 @@
         var msg = document.getElementById("create-user-message");
         var submit = this.querySelector('button[type="submit"]');
         var username = document.getElementById("new-username").value;
+        var password = document.getElementById("new-password").value;
+        var confirmPassword = document.getElementById("new-password-confirm").value;
+        if (password !== confirmPassword) {
+          msg.textContent = "passwords do not match";
+          msg.className = "text-sm font-medium text-red-500 empty:hidden";
+          return;
+        }
         ofan.busy(submit, true);
         fetch("/api/v1/admin/users/create", {
           method: "POST",
@@ -373,7 +393,7 @@
           },
           body: JSON.stringify({
             username: username,
-            password: document.getElementById("new-password").value,
+            password: password,
             is_admin: document.getElementById("new-is-admin").checked,
           }),
         })

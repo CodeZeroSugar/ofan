@@ -62,6 +62,20 @@
                   required
                 />
               </div>
+              <div>
+                <label
+                  for="confirm-password"
+                  class="label"
+                  >Confirm New Password</label
+                >
+                <input
+                  class="field"
+                  type="password"
+                  id="confirm-password"
+                  minlength="5"
+                  required
+                />
+              </div>
               <button
                 type="submit"
                 class="btn-primary w-full"
@@ -83,6 +97,14 @@
         .addEventListener("submit", function (event) {
           event.preventDefault();
           var msg = document.getElementById("change-password-message");
+          var pw = document.getElementById("new-password").value;
+          var confirmPw = document.getElementById("confirm-password").value;
+          if (pw !== confirmPw) {
+            msg.textContent = "passwords do not match";
+            msg.classList.add("text-red-500");
+            msg.classList.remove("text-emerald-400");
+            return;
+          }
           ofan.busy(document.querySelector('#change-password-form button[type="submit"]'), true);
           fetch("/api/v1/auth/password", {
             method: "POST",
@@ -91,7 +113,7 @@
               Accept: "application/json",
             },
             body: JSON.stringify({
-              new_password: document.getElementById("new-password").value,
+              new_password: pw,
             }),
           }).then(function (resp) {
             ofan.busy(document.querySelector('#change-password-form button[type="submit"]'), false);
