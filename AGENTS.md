@@ -266,7 +266,7 @@ user's to perform.
   - D5 Install guide ✅ drafted in README "Getting started" (Ubuntu Server + k3s, targeted at non-technical users).
   - D6 fresh-environment proof ✅ 2026-10-27 (install guide followed cold on a clean Ubuntu Server 26.04 VM; `smoke.sh` green, including the refactored self-test with typed `wipe` and prompts; manual dashboard testing green).
   - D7 DHCP-proof home deployments ✅ 2026-11-01 — guide runbook (DHCP reservation + `systemctl restart k3s`), smoke preflight, and app-side cluster network health (`GET /api/v1/system/network` + Admin → Network Management UI).
-- **CI/CD container publishing** (next): GitHub Actions workflow to build and push versioned (`v*`) + `latest` images to `ghcr.io/codezerosugar/ofan`.
+- **CI/CD container publishing** ✅ COMPLETE: `.github/workflows/ci.yml` `docker` job builds and pushes versioned (`v*`) + `latest` images to `ghcr.io/codezerosugar/ofan` (gated on `tests` + `style`).
 
 ## Backlog
 
