@@ -62,10 +62,6 @@ func (c *ValheimConfig) Validate() error {
 		return fmt.Errorf("server password must be at least 5 characters")
 	}
 
-	if p := c.CoreSettings.ServerPort; p < 1 || p > 65534 {
-		return fmt.Errorf("server_port must be in range 1-65534, got %d", p)
-	}
-
 	if c.Mods.BepInEx && c.Mods.ValheimPlus {
 		return fmt.Errorf("cannot select BepInEx and ValheimPlus, choose one")
 	}
@@ -79,7 +75,7 @@ func DefaultValheimConfig(name, password string) ValheimConfig {
 			ServerName:   name,
 			WorldName:    "Dedicated",
 			ServerPass:   password,
-			ServerPort:   2456,
+			ServerPort:   30100,
 			ServerPublic: false,
 		},
 		Maintenance: Maintenance{

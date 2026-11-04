@@ -73,18 +73,7 @@
               title="Valheim world name. Frozen after creation — changing it later requires recreating the server."
             />
           </div>
-          <div>
-            <label for="server-port" class="label">Server Port</label>
-            <input
-              class="field"
-              type="number"
-              id="server-port"
-              name="server_port"
-              placeholder="2456"
-              title="UDP game port (1-65534). Frozen after creation — changing it later requires recreating the server."
-            />
-          </div>
-          <div>
+          <div class="flex items-end pb-2">
             <label class="flex items-center gap-2 text-sm text-zinc-300" title="Whether the server is listed publicly.">
               <input type="checkbox" id="server-public" name="server_public" value="true" />
               Public server
@@ -298,7 +287,7 @@
                         server_name: formName,
                         world_name: textOr("world-name", d.core_settings.world_name),
                         server_pass: formPassword,
-                        server_port: numOr("server-port", d.core_settings.server_port),
+                        server_port: d.core_settings.server_port,
                         server_public: document.getElementById("server-public").checked,
                       },
                       access_control: {
@@ -391,7 +380,6 @@
               .then(function (cfg) {
                 serverDefaults = cfg;
                 setText("world-name", cfg.core_settings.world_name);
-                setText("server-port", cfg.core_settings.server_port);
                 setBox("server-public", cfg.core_settings.server_public);
                 setText("admin-ids", cfg.access_control.admin_list_ids);
                 setText("banned-ids", cfg.access_control.banned_list_ids);

@@ -26,7 +26,7 @@ type apiSuite struct {
 }
 
 func testConfigJSON(name string) string {
-	return fmt.Sprintf(`{"core_settings":{"server_name":%q,"server_port":"2456"}}`, name)
+	return fmt.Sprintf(`{"core_settings":{"server_name":%q,"server_port":2456}}`, name)
 }
 
 func (s *apiSuite) SetupTest() {
@@ -54,6 +54,35 @@ func (s *apiSuite) SetupTest() {
 func (s *apiSuite) reqWithUser(user *db.User, method, target, body string) *http.Request {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	return req.WithContext(auth.WithUser(req.Context(), user))
+}
+
+func (s *apiSuite) TestCreate_AllocateSequentialPortPairs() {
+	ctx := context.Background()
+
+	admin, _ := s.cfg.Store.GetUserByUsername(ctx, "admin")
+
+	body := `{"name":"alpha","password":"secret123"}`
+	req := s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
+	s.rr = httptest.NewRecorder()
+	s.cfg.HandlerCreateGameServer(s.rr, req)
+
+	body = `{"name":"bravo","password":"secret123"}`
+	req = s.reqWithUser(admin, http.MethodPost, "/api/v1/servers/create", body)
+	s.rr = httptest.NewRecorder()
+	s.cfg.HandlerCreateGameServer(s.rr, req)
+
+	cfg, err := s.cfg.Store.ListServerConfigs(ctx)
+	s.Require().NoError(err)
+	for _, c := range cfg {
+		var vcfg k8s.ValheimConfig
+		s.Require().NoError(json.Unmarshal([]byte(c.ConfigJSON), &vcfg))
+		if c.Name == "alpha" {
+			s.Assert().Equal(int32(30100), vcfg.CoreSettings.ServerPort)
+		}
+		if c.Name == "bravo" {
+			s.Assert().Equal(int32(30102), vcfg.CoreSettings.ServerPort)
+		}
+	}
 }
 
 func (s *apiSuite) TestCreate_Valid() {

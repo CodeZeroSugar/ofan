@@ -67,10 +67,10 @@ sudo ufw allow OpenSSH
 sudo ufw allow 30080/tcp
 ```
 
-Each Valheim server gets its own port, between 30000 and 32767. The port is shown on the server's card in the dashboard, and you need to allow it for friends to connect. For example, if the card shows `192.168.1.50:30643`:
+Each Valheim server gets its own pair of UDP ports (a Game Port for direct Join IP connections, and the next port for Steam's server browser), between 30100 and 32767. The Game Port is shown on the server's card in the dashboard, and both ports are shown on the server's details page. For example, if the server uses `30100` and `30101`:
 
 ```bash
-sudo ufw allow 30643/udp
+sudo ufw allow 30100:30101/udp
 ```
 
 ### Step 3: Get Ofan

@@ -65,7 +65,7 @@ func TestBuildService(t *testing.T) {
 		{
 			name:                "node port is 0",
 			inputServerPort:     2456,
-			expectedQueryPort:   0,
+			expectedQueryPort:   2457,
 			expectedServerPort:  2456,
 			expectedServerQuery: 2457,
 		},

@@ -53,7 +53,7 @@
               <details open class="group section-card">
 <summary class="flex cursor-pointer list-none items-center justify-between text-lg font-semibold text-neutral-50">Core<span aria-hidden="true" class="text-base text-zinc-400 transition-transform group-open:rotate-180">&#9662;</span></summary>
 <div class="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
+              <div class="md:col-span-2">
                 <label for="world-name" class="label">World Name</label>
                 <input
                   class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg focus:outline-none opacity-50"
@@ -64,20 +64,33 @@
                 />
               </div>
               <div>
-                <label for="server-port" class="label">Server Port</label>
+                <label for="server-port" class="label">Game Port (Join IP)</label>
                 <input
-                  class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg focus:outline-none opacity-50"
+                  class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg font-mono focus:outline-none opacity-50"
                   type="number"
                   id="server-port"
                   disabled
-                  title="Frozen after creation — changing it requires recreating the server."
+                  title="UDP port players enter in Valheim's Join IP menu. Assigned automatically on creation."
                 />
               </div>
               <div>
+                <label for="query-port" class="label">Browser Port (Public List)</label>
+                <input
+                  class="w-full bg-zinc-800 px-4 py-2 border border-zinc-700 rounded-lg font-mono focus:outline-none opacity-50"
+                  type="number"
+                  id="query-port"
+                  disabled
+                  title="UDP port used by Steam's server browser (always Game Port + 1). Assigned automatically on creation."
+                />
+              </div>
+              <div class="md:col-span-2">
                 <label class="flex items-center gap-2 text-sm text-zinc-300" title="Whether the server is listed publicly.">
                   <input type="checkbox" id="server-public" />
                   Public server
                 </label>
+                <p class="mt-1 text-xs text-zinc-400">
+                  Lists this server in Valheim's Community browser. Allow both UDP ports above in your firewall or router when hosting publicly.
+                </p>
               </div>
               </div>
 </details><details open class="group section-card">
@@ -269,6 +282,9 @@
           setVal("password", cfg.core_settings.server_pass);
           setVal("world-name", cfg.core_settings.world_name);
           setVal("server-port", cfg.core_settings.server_port);
+          if (cfg.core_settings.server_port) {
+            setVal("query-port", cfg.core_settings.server_port + 1);
+          }
           setChecked("server-public", cfg.core_settings.server_public);
           setVal("admin-ids", cfg.access_control.admin_list_ids);
           setVal("banned-ids", cfg.access_control.banned_list_ids);
@@ -293,6 +309,17 @@
         .catch(function (err) {
           detailsError(err.message);
         });
+      function statusBadgeClass(status) {
+        if (status === "running") return "badge capitalize bg-emerald-900 text-emerald-200";
+        if (status === "starting" || status === "provisioning") return "badge capitalize bg-sky-900 text-sky-200";
+        if (status === "deleting") return "badge capitalize bg-orange-900 text-orange-200";
+        return "badge capitalize bg-zinc-700 text-zinc-200";
+      }
+      function healthBadgeClass(health) {
+        if (health === "failed") return "badge capitalize bg-red-900 text-red-200";
+        if (health === "degraded") return "badge capitalize bg-orange-900 text-orange-200";
+        return "badge capitalize bg-emerald-900 text-emerald-200";
+      }
       function loadStatus() {
       fetch("/api/v1/servers/" + serverName, {
         headers: { Accept: "application/json" },
@@ -304,28 +331,45 @@
         .then(function (view) {
           var st = document.getElementById("details-status");
           st.innerHTML = "";
-          var rows = [
-            ["Status", view.status],
-            ["Desired", view.desired_state],
-            ["Health", view.health],
-            ["Owner", view.owner],
-            ["Address", view.node_ip + ":" + view.node_port],
-            ["Running for", "—", view.status === "running" && view.running_since && view.running_since.indexOf("0001-") !== 0 ? view.running_since : ""],
+          var grid = document.createElement("dl");
+          grid.className = "grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3";
+          var items = [
+            { label: "Status", value: view.status || "—", badge: statusBadgeClass(view.status) },
+            { label: "Health", value: view.health || "—", badge: healthBadgeClass(view.health) },
+            { label: "Desired", value: view.desired_state || "—", cls: "capitalize text-neutral-50" },
+            { label: "Owner", value: view.owner || "—", cls: "text-neutral-50" },
+            {
+              label: "Running for",
+              value: "—",
+              cls: "text-neutral-50",
+              runningSince: view.status === "running" && view.running_since && view.running_since.indexOf("0001-") !== 0 ? view.running_since : "",
+            },
+            {
+              label: "Join IP Address",
+              value: view.node_ip && view.node_port ? view.node_ip + ":" + view.node_port : "—",
+              cls: "font-mono text-neutral-50",
+            },
           ];
-          rows.forEach(function (pair) {
-            var row = document.createElement("div");
-            row.className = "text-sm";
-            var label = document.createElement("span");
-            label.className = "text-zinc-400";
-            label.textContent = pair[0] + ": ";
-            var val = document.createElement("span");
-            val.className = "text-neutral-50";
-            val.textContent = pair[1] === undefined || pair[1] === null ? "—" : pair[1];
-            if (pair[2] !== undefined) val.setAttribute("data-running-since", pair[2]);
-            row.appendChild(label);
-            row.appendChild(val);
-            st.appendChild(row);
+          items.forEach(function (item) {
+            var cell = document.createElement("div");
+            var dt = document.createElement("dt");
+            dt.className = "text-zinc-400";
+            dt.textContent = item.label;
+            var dd = document.createElement("dd");
+            dd.className = "mt-1";
+            var span = document.createElement("span");
+            span.className = item.badge || item.cls || "text-neutral-50";
+            span.textContent = item.value;
+            if (item.runningSince !== undefined) {
+              span.setAttribute("data-running-since", item.runningSince);
+            }
+            dd.appendChild(span);
+            cell.appendChild(dt);
+            cell.appendChild(dd);
+            grid.appendChild(cell);
           });
+          st.appendChild(grid);
+          if (window.ofan && ofan.tickRunning) ofan.tickRunning();
         })
         .catch(function () {
           document.getElementById("details-status").innerHTML =

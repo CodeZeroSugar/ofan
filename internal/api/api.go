@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,47 @@ type ApiConfig struct {
 	Templates       *template.Template
 }
 
+const uiPort = 30080
+
+func (c *ApiConfig) allocateServerPort(ctx context.Context) (int32, error) {
+	portsOccupied := make(map[int32]bool)
+	portsOccupied[uiPort] = true
+
+	rows, err := c.Store.ListServerConfigs(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, row := range rows {
+		var cfg k8s.ValheimConfig
+		if err := json.Unmarshal([]byte(row.ConfigJSON), &cfg); err != nil {
+			log.Printf("failed to unmarshal a config from db: %v", err)
+			continue
+		}
+		portsOccupied[cfg.CoreSettings.ServerPort] = true
+		portsOccupied[cfg.CoreSettings.ServerPort+1] = true
+	}
+
+	if c.InformerManager != nil && c.InformerManager.Registry != nil {
+		for _, reg := range c.InformerManager.Registry.List() {
+			if reg.NodePort != 0 {
+				portsOccupied[reg.NodePort] = true
+			}
+			if reg.QueryPort != 0 {
+				portsOccupied[reg.QueryPort] = true
+			}
+		}
+	}
+
+	for p := int32(30100); p <= 32766; p += 2 {
+		if !portsOccupied[p] && !portsOccupied[p+1] {
+			return p, nil
+		}
+	}
+
+	return 0, errors.New("no available server port pairs in range 30100-32766")
+}
+
 func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Request) {
 	var req CreateGameServer
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -57,6 +99,15 @@ func (c *ApiConfig) HandlerCreateGameServer(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("game server '%s' already exists", opts.Name), http.StatusConflict)
 		return
 	}
+
+	port, err := c.allocateServerPort(r.Context())
+	if err != nil {
+		log.Printf("failed to allocate server port: %v", err)
+		http.Error(w, "something went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	opts.Config.CoreSettings.ServerPort = port
 
 	configJson, err := json.Marshal(opts.Config)
 	if err != nil {

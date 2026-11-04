@@ -253,6 +253,7 @@ assert_jq "$BODY" --arg n "$SERVER_NAME" '(.[$n].node_port | type) == "number" a
 assert_jq "$BODY" --arg n "$SERVER_NAME" '(.[$n].query_port | type) == "number" and .[$n].query_port > 0'
 PORT_BEFORE=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].node_port')
 QUERY_BEFORE=$(echo "$BODY" | jq -r --arg n "$SERVER_NAME" '.[$n].query_port')
+assert_eq "query_port equals node_port + 1" "$((PORT_BEFORE + 1))" "$QUERY_BEFORE"
 echo ">> server running (node_port $PORT_BEFORE, query_port $QUERY_BEFORE)"
 
 # 5. stop
@@ -274,10 +275,10 @@ assert_eq "node_port preserved through stop/start" "$PORT_BEFORE" "$PORT_AFTER"
 assert_eq "query_port preserved through stop/start" "$QUERY_BEFORE" "$QUERY_AFTER"
 echo ">> node_port and query_port preserved through stop/start"
 
-# 7.5 update server config (mutable fields only - port 2456 + world Dedicated frozen)
+# 7.5 update server config (mutable fields only - allocated server_port + world Dedicated frozen)
 OLD_HASH=$(kubectl -n "$NS" get deployment "$SERVER_NAME" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
-BODY=$(jq -n --arg n "$SERVER_NAME" '{
-  core_settings: {server_name: $n, world_name: "Dedicated", server_pass: "updatedpass", server_port: 2456, server_public: true},
+BODY=$(jq -n --arg n "$SERVER_NAME" --argjson p "$PORT_BEFORE" '{
+  core_settings: {server_name: $n, world_name: "Dedicated", server_pass: "updatedpass", server_port: $p, server_public: true},
   access_control: {},
   maintenance: {update_cron: "*/15 * * * *", update_if_idle: true, restart_cron: "10 5 * * *", restart_if_idle: true, backups: true, backups_if_idle: true, backups_cron: "5 * * * *", backups_max_age: 3, backups_max_count: 0},
   mods: {valheim_plus: false, bepinex: false},
@@ -291,7 +292,7 @@ PUB=$(kubectl -n "$NS" get configmap "$SERVER_NAME-configmap" -o "jsonpath={.dat
 assert_eq "SERVER_PUBLIC updated in ConfigMap" "true" "$PUB"
 
 # 7.6 frozen config rejected (port change must 400, row untouched)
-FROZEN_BODY=$(echo "$BODY" | jq '.core_settings.server_port = 2457')
+FROZEN_BODY=$(echo "$BODY" | jq --argjson fp "$((PORT_BEFORE + 2))" '.core_settings.server_port = $fp')
 api PUT /api/v1/servers/$SERVER_NAME/config "$TOKEN" "$FROZEN_BODY"
 assert_code "$CODE" 400 "frozen server_port rejected"
 CUR_HASH=$(kubectl -n "$NS" get deployment "$SERVER_NAME" -o "jsonpath={.spec.template.metadata.annotations.ofan\.io\/config-hash}")
